@@ -198,7 +198,7 @@ get-md article.html --no-images --no-links -o clean.md
 
 ## License
 
-MIT © 2024 Nano Collective
+MIT © 2025 Nano Collective
 
 ## Contributing
 

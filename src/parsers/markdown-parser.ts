@@ -92,15 +92,20 @@ export class MarkdownParser {
     // Step 8: Apply LLM-specific formatting
     markdown = formatForLLM(markdown);
 
-    // Step 9: Add frontmatter if requested
+    // Step 9: Calculate word count and reading time from markdown (before adding frontmatter)
+    const { wordCount, readingTime } = this.calculateMarkdownStats(markdown);
+    metadata.wordCount = wordCount;
+    metadata.readingTime = readingTime;
+
+    // Step 10: Add frontmatter if requested
     if (opts.includeMeta && Object.keys(metadata).length > 0) {
       markdown = this.addFrontmatter(markdown, metadata);
     }
 
-    // Step 10: Final cleanup
+    // Step 11: Final cleanup
     markdown = this.postProcess(markdown);
 
-    // Step 11: Validate length
+    // Step 12: Validate length
     if (opts.maxLength && markdown.length > opts.maxLength) {
       markdown =
         markdown.substring(0, opts.maxLength) + "\n\n[Content truncated]";
@@ -150,10 +155,7 @@ export class MarkdownParser {
         author: article.byline || undefined,
         excerpt: article.excerpt || undefined,
         siteName: article.siteName || undefined,
-        readingTime: article.length
-          ? Math.ceil(article.length / 200)
-          : undefined, // ~200 words per minute
-        wordCount: article.length || undefined,
+        // wordCount and readingTime will be calculated from final markdown
       },
     };
   }
@@ -348,6 +350,38 @@ export class MarkdownParser {
     yaml.push("---");
 
     return yaml.join("\n") + "\n\n" + markdown;
+  }
+
+  private calculateMarkdownStats(markdown: string): { wordCount: number; readingTime: number } {
+    // Remove frontmatter if present
+    let contentOnly = markdown;
+    if (markdown.startsWith('---')) {
+      const frontmatterEnd = markdown.indexOf('---', 3);
+      if (frontmatterEnd !== -1) {
+        contentOnly = markdown.substring(frontmatterEnd + 3).trim();
+      }
+    }
+
+    // Count words in the actual content (excluding code blocks and URLs)
+    // Remove code blocks first
+    contentOnly = contentOnly.replace(/```[\s\S]*?```/g, '');
+    // Remove inline code
+    contentOnly = contentOnly.replace(/`[^`]+`/g, '');
+    // Remove URLs
+    contentOnly = contentOnly.replace(/https?:\/\/[^\s)]+/g, '');
+    // Remove markdown link syntax but keep the text
+    contentOnly = contentOnly.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+    // Remove image syntax
+    contentOnly = contentOnly.replace(/!\[([^\]]*)\]\([^)]+\)/g, '');
+
+    // Count words
+    const words = contentOnly.trim().split(/\s+/).filter(w => w.length > 0);
+    const wordCount = words.length;
+
+    // Calculate reading time (250 words per minute is more realistic)
+    const readingTime = Math.ceil(wordCount / 250);
+
+    return { wordCount, readingTime };
   }
 
   private postProcess(markdown: string): string {

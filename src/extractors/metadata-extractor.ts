@@ -20,8 +20,7 @@ export function extractMetadata(
     publishedTime: extractPublishedTime($),
     language: extractLanguage($),
     canonicalUrl: extractCanonicalUrl($, baseUrl),
-    wordCount: countWords($),
-    readingTime: calculateReadingTime($),
+    // wordCount and readingTime are now calculated from final markdown
   };
 }
 
@@ -149,14 +148,3 @@ function extractCanonicalUrl(
   return baseUrl;
 }
 
-function countWords($: cheerio.CheerioAPI): number {
-  const text = $('body').text();
-  const words = text.trim().split(/\s+/);
-  return words.filter((w) => w.length > 0).length;
-}
-
-function calculateReadingTime($: cheerio.CheerioAPI): number {
-  const wordCount = countWords($);
-  // Average reading speed: 200 words per minute
-  return Math.ceil(wordCount / 200);
-}
