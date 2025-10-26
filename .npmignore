@@ -1,0 +1,34 @@
+# Source files
+src
+tests
+examples
+
+# Config files
+tsconfig.json
+.eslintrc.js
+.prettierrc
+vitest.config.ts
+
+# Documentation (keep only README)
+docs
+agents
+*.md
+!README.md
+
+# Development files
+.git
+.gitignore
+.npmignore
+.vscode
+.idea
+
+# Test and coverage
+coverage
+.nyc_output
+
+# CI/CD
+.github
+
+# Misc
+*.log
+.DS_Store
