@@ -12,7 +12,7 @@ const program = new Command();
 program
   .name("get-md")
   .description(
-    "Convert HTML to LLM-optimized Markdown or extract structured JSON"
+    "Convert HTML to LLM-optimized Markdown or extract structured JSON",
   )
   .version("1.0.0");
 
@@ -71,13 +71,13 @@ async function getInput(input?: string): Promise<string> {
   }
 
   throw new Error(
-    "No input provided. Provide a file path, URL, or pipe to stdin."
+    "No input provided. Provide a file path, URL, or pipe to stdin.",
   );
 }
 
 async function handleMarkdownConversion(
   html: string,
-  options: any
+  options: any,
 ): Promise<void> {
   const conversionOptions: MarkdownOptions = {
     extractContent: options.extract,
@@ -106,6 +106,5 @@ async function handleMarkdownConversion(
     console.log(result.markdown);
   }
 }
-
 
 program.parse();

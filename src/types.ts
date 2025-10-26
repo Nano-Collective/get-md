@@ -114,60 +114,6 @@ export interface ConversionStats {
   linkCount: number;
 }
 
-/** Options for JSON extraction */
-export interface JsonExtractionOptions {
-  /** Use automatic selector detection (default: true) */
-  autoDetect?: boolean;
-
-  /** Custom CSS selectors for schema fields */
-  selectors?: Record<string, string>;
-
-  /** Strict schema validation (default: true) */
-  strict?: boolean;
-
-  /** Return partial results on validation error (default: false) */
-  partial?: boolean;
-
-  /** Base URL for resolving relative URLs */
-  baseUrl?: string;
-}
-
-/** JSON Schema definition */
-export interface JsonSchema {
-  /** JSON Schema object */
-  schema: Record<string, any>;
-
-  /** Optional description of what to extract */
-  description?: string;
-}
-
-/** Result from JSON extraction */
-export interface JsonResult<T = any> {
-  /** Extracted data matching schema */
-  data: T;
-
-  /** Extraction statistics */
-  stats: ExtractionStats;
-
-  /** Warnings from extraction process */
-  warnings?: string[];
-}
-
-/** Extraction statistics */
-export interface ExtractionStats {
-  /** Input HTML length */
-  inputLength: number;
-
-  /** Processing time in milliseconds */
-  processingTime: number;
-
-  /** Number of fields extracted */
-  fieldsExtracted: number;
-
-  /** Number of fields missing */
-  fieldsMissing: number;
-}
-
 /** Options for URL fetching */
 export interface FetchOptions {
   /** Request timeout in milliseconds (default: 15000) */

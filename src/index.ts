@@ -1,16 +1,16 @@
 // src/index.ts
 
-import { MarkdownParser } from './parsers/markdown-parser.js';
-import { fetchUrl, isValidUrl } from './utils/url-fetcher.js';
-import { hasContent as hasContentUtil } from './utils/validators.js';
+import { MarkdownParser } from "./parsers/markdown-parser.js";
+import { fetchUrl, isValidUrl } from "./utils/url-fetcher.js";
+import { hasContent as hasContentUtil } from "./utils/validators.js";
 import type {
   MarkdownOptions,
   MarkdownResult,
   ContentMetadata,
   TurndownRule,
   ConversionStats,
-} from './types.js';
-import type { FetchOptions } from './types.js';
+} from "./types.js";
+import type { FetchOptions } from "./types.js";
 
 /**
  * Convert HTML to clean, LLM-optimized Markdown
@@ -47,7 +47,7 @@ import type { FetchOptions } from './types.js';
  */
 export async function convertToMarkdown(
   html: string,
-  options?: MarkdownOptions
+  options?: MarkdownOptions,
 ): Promise<MarkdownResult> {
   // Check if input is a URL (or forced to be treated as one)
   if (options?.isUrl || isValidUrl(html)) {

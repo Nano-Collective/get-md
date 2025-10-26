@@ -2,7 +2,7 @@
 
 import * as cheerio from "cheerio";
 
-export interface CleanOptions {
+interface CleanOptions {
   /** Remove ads, navigation, social media, etc. */
   aggressive?: boolean;
   /** Base URL for resolving relative URLs */
@@ -54,7 +54,7 @@ function removeNoiseElements($: cheerio.CheerioAPI): void {
       '[role="complementary"]',
       '[role="contentinfo"]',
       '[role="search"]',
-    ].join(",")
+    ].join(","),
   ).remove();
 
   // Remove by common class/id patterns

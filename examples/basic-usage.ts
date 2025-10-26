@@ -1,6 +1,6 @@
 // examples/basic-usage.ts
 
-import { convertToMarkdown } from '../src/index.js';
+import { convertToMarkdown } from "../src/index.js";
 
 async function main() {
   const html = `
@@ -35,11 +35,11 @@ console.log(result.markdown);
     extractContent: true,
   });
 
-  console.log('=== Markdown Output ===');
+  console.log("=== Markdown Output ===");
   console.log(result.markdown);
-  console.log('\n=== Metadata ===');
+  console.log("\n=== Metadata ===");
   console.log(JSON.stringify(result.metadata, null, 2));
-  console.log('\n=== Stats ===');
+  console.log("\n=== Stats ===");
   console.log(JSON.stringify(result.stats, null, 2));
 }
 

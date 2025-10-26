@@ -41,7 +41,7 @@ export class MarkdownParser {
 
   async convert(
     html: string,
-    options: MarkdownOptions = {}
+    options: MarkdownOptions = {},
   ): Promise<MarkdownResult> {
     const startTime = Date.now();
     const opts = this.normalizeOptions(options);
@@ -134,7 +134,7 @@ export class MarkdownParser {
 
   private extractMainContent(
     html: string,
-    baseUrl?: string
+    baseUrl?: string,
   ): { content: string; metadata: ContentMetadata } | null {
     const doc = new JSDOM(html, { url: baseUrl });
     const reader = new Readability(doc.window.document, {
@@ -162,7 +162,7 @@ export class MarkdownParser {
 
   private filterContent(
     html: string,
-    options: Required<MarkdownOptions>
+    options: Required<MarkdownOptions>,
   ): string {
     const $ = cheerio.load(html);
 
@@ -352,11 +352,14 @@ export class MarkdownParser {
     return yaml.join("\n") + "\n\n" + markdown;
   }
 
-  private calculateMarkdownStats(markdown: string): { wordCount: number; readingTime: number } {
+  private calculateMarkdownStats(markdown: string): {
+    wordCount: number;
+    readingTime: number;
+  } {
     // Remove frontmatter if present
     let contentOnly = markdown;
-    if (markdown.startsWith('---')) {
-      const frontmatterEnd = markdown.indexOf('---', 3);
+    if (markdown.startsWith("---")) {
+      const frontmatterEnd = markdown.indexOf("---", 3);
       if (frontmatterEnd !== -1) {
         contentOnly = markdown.substring(frontmatterEnd + 3).trim();
       }
@@ -364,18 +367,21 @@ export class MarkdownParser {
 
     // Count words in the actual content (excluding code blocks and URLs)
     // Remove code blocks first
-    contentOnly = contentOnly.replace(/```[\s\S]*?```/g, '');
+    contentOnly = contentOnly.replace(/```[\s\S]*?```/g, "");
     // Remove inline code
-    contentOnly = contentOnly.replace(/`[^`]+`/g, '');
+    contentOnly = contentOnly.replace(/`[^`]+`/g, "");
     // Remove URLs
-    contentOnly = contentOnly.replace(/https?:\/\/[^\s)]+/g, '');
+    contentOnly = contentOnly.replace(/https?:\/\/[^\s)]+/g, "");
     // Remove markdown link syntax but keep the text
-    contentOnly = contentOnly.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+    contentOnly = contentOnly.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
     // Remove image syntax
-    contentOnly = contentOnly.replace(/!\[([^\]]*)\]\([^)]+\)/g, '');
+    contentOnly = contentOnly.replace(/!\[([^\]]*)\]\([^)]+\)/g, "");
 
     // Count words
-    const words = contentOnly.trim().split(/\s+/).filter(w => w.length > 0);
+    const words = contentOnly
+      .trim()
+      .split(/\s+/)
+      .filter((w) => w.length > 0);
     const wordCount = words.length;
 
     // Calculate reading time (250 words per minute is more realistic)
@@ -391,7 +397,7 @@ export class MarkdownParser {
     // Clean up list formatting (remove blank lines within lists)
     markdown = markdown.replace(
       /^(-|\d+\.)\s+(.+?)(\n\n)(-|\d+\.)/gm,
-      "$1 $2\n$4"
+      "$1 $2\n$4",
     );
 
     // Ensure code blocks have spacing
@@ -441,7 +447,7 @@ export class MarkdownParser {
   }
 
   private normalizeOptions(
-    options: MarkdownOptions
+    options: MarkdownOptions,
   ): Required<MarkdownOptions> {
     return {
       extractContent: options.extractContent ?? true,

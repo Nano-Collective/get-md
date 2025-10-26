@@ -28,7 +28,7 @@ export function formatForLLM(markdown: string): string {
 }
 
 function normalizeHeadingLevels(markdown: string): string {
-  const lines = markdown.split('\n');
+  const lines = markdown.split("\n");
   const result: string[] = [];
   let currentLevel = 0;
 
@@ -43,37 +43,37 @@ function normalizeHeadingLevels(markdown: string): string {
       const normalizedLevel = Math.min(level, currentLevel + 2);
       currentLevel = normalizedLevel;
 
-      result.push('#'.repeat(normalizedLevel) + ' ' + title);
+      result.push("#".repeat(normalizedLevel) + " " + title);
     } else {
       result.push(line);
-      if (line.trim() === '') {
+      if (line.trim() === "") {
         currentLevel = 0; // Reset on blank section
       }
     }
   }
 
-  return result.join('\n');
+  return result.join("\n");
 }
 
 function normalizeListFormatting(markdown: string): string {
   let result = markdown;
 
   // Ensure consistent list markers (use - for unordered)
-  result = result.replace(/^\s*[*+]\s+/gm, '- ');
+  result = result.replace(/^\s*[*+]\s+/gm, "- ");
 
   // Ensure proper indentation for nested lists (2 spaces)
-  const lines = result.split('\n');
+  const lines = result.split("\n");
 
   result = lines
     .map((line) => {
       if (/^(\s*)[-*+]\s+/.test(line)) {
         const indent = line.match(/^(\s*)/)?.[1].length || 0;
         const depth = Math.floor(indent / 2);
-        return '  '.repeat(depth) + '- ' + line.trim().replace(/^[-*+]\s+/, '');
+        return "  ".repeat(depth) + "- " + line.trim().replace(/^[-*+]\s+/, "");
       }
       return line;
     })
-    .join('\n');
+    .join("\n");
 
   return result;
 }
@@ -82,19 +82,19 @@ function cleanInlineFormatting(markdown: string): string {
   let result = markdown;
 
   // Remove multiple consecutive emphasis markers (***text*** → **text**)
-  result = result.replace(/\*{3,}(.+?)\*{3,}/g, '**$1**');
+  result = result.replace(/\*{3,}(.+?)\*{3,}/g, "**$1**");
 
   // Clean up spaces around emphasis
-  result = result.replace(/\*\s+/g, '*');
-  result = result.replace(/\s+\*/g, '*');
+  result = result.replace(/\*\s+/g, "*");
+  result = result.replace(/\s+\*/g, "*");
 
   return result;
 }
 
 function enhanceCodeBlocks(markdown: string): string {
   // Ensure code blocks are on their own lines with spacing
-  let result = markdown.replace(/([^\n])```/g, '$1\n\n```');
-  result = result.replace(/```([^\n])/g, '```\n$1');
+  let result = markdown.replace(/([^\n])```/g, "$1\n\n```");
+  result = result.replace(/```([^\n])/g, "```\n$1");
 
   return result;
 }
@@ -104,10 +104,13 @@ function optimizeLinkFormatting(markdown: string): string {
   const links: Map<string, string> = new Map();
 
   // Extract reference definitions
-  let result = markdown.replace(/^\[([^\]]+)\]:\s*(.+)$/gm, (_match, ref, url) => {
-    links.set(ref.toLowerCase(), url.trim());
-    return '';
-  });
+  let result = markdown.replace(
+    /^\[([^\]]+)\]:\s*(.+)$/gm,
+    (_match, ref, url) => {
+      links.set(ref.toLowerCase(), url.trim());
+      return "";
+    },
+  );
 
   // Replace reference-style links with inline
   result = result.replace(/\[([^\]]+)\]\[([^\]]*)\]/g, (match, text, ref) => {

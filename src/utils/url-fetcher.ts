@@ -1,28 +1,24 @@
 // src/utils/url-fetcher.ts
 
-import type { FetchOptions } from '../types.js';
-import {
-  DEFAULT_USER_AGENT,
-  DEFAULT_FETCH_TIMEOUT,
-} from '../config.js';
+import type { FetchOptions } from "../types.js";
+import { DEFAULT_USER_AGENT, DEFAULT_FETCH_TIMEOUT } from "../config.js";
 
 /**
  * Fetch HTML from a URL with timeout and redirect handling
  */
 export async function fetchUrl(
   url: string,
-  options: FetchOptions = {}
+  options: FetchOptions = {},
 ): Promise<string> {
   const timeout = options.timeout ?? DEFAULT_FETCH_TIMEOUT;
   const userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
   const followRedirects = options.followRedirects ?? true;
 
   const headers: Record<string, string> = {
-    'User-Agent': userAgent,
-    Accept:
-      'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.5',
-    'Accept-Encoding': 'gzip, deflate, br',
+    "User-Agent": userAgent,
+    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Accept-Encoding": "gzip, deflate, br",
     ...options.headers,
   };
 
@@ -33,7 +29,7 @@ export async function fetchUrl(
     const response = await fetch(url, {
       headers,
       signal: controller.signal,
-      redirect: followRedirects ? 'follow' : 'manual',
+      redirect: followRedirects ? "follow" : "manual",
     });
 
     clearTimeout(timeoutId);
@@ -46,7 +42,7 @@ export async function fetchUrl(
     return html;
   } catch (error) {
     if (error instanceof Error) {
-      if (error.name === 'AbortError') {
+      if (error.name === "AbortError") {
         throw new Error(`Request timeout after ${timeout}ms`);
       }
       throw new Error(`Failed to fetch URL: ${error.message}`);
@@ -61,7 +57,7 @@ export async function fetchUrl(
 export function isValidUrl(urlString: string): boolean {
   try {
     const url = new URL(urlString);
-    return url.protocol === 'http:' || url.protocol === 'https:';
+    return url.protocol === "http:" || url.protocol === "https:";
   } catch {
     return false;
   }

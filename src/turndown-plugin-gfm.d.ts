@@ -1,6 +1,6 @@
 // Type declaration for turndown-plugin-gfm
-declare module 'turndown-plugin-gfm' {
-  import TurndownService from 'turndown';
+declare module "turndown-plugin-gfm" {
+  import TurndownService from "turndown";
 
   export const gfm: TurndownService.Plugin;
   export const tables: TurndownService.Plugin;
