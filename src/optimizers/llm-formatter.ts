@@ -106,18 +106,21 @@ function optimizeLinkFormatting(markdown: string): string {
   // Extract reference definitions
   let result = markdown.replace(
     /^\[([^\]]+)\]:\s*(.+)$/gm,
-    (_match, ref, url) => {
+    (_match, ref: string, url: string) => {
       links.set(ref.toLowerCase(), url.trim());
       return "";
     },
   );
 
   // Replace reference-style links with inline
-  result = result.replace(/\[([^\]]+)\]\[([^\]]*)\]/g, (match, text, ref) => {
-    const refKey = (ref || text).toLowerCase();
-    const url = links.get(refKey);
-    return url ? `[${text}](${url})` : match;
-  });
+  result = result.replace(
+    /\[([^\]]+)\]\[([^\]]*)\]/g,
+    (match, text: string, ref: string) => {
+      const refKey = (ref || text).toLowerCase();
+      const url = links.get(refKey);
+      return url ? `[${text}](${url})` : match;
+    },
+  );
 
   return result;
 }

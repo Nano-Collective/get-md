@@ -138,8 +138,21 @@ export interface TurndownRule {
   name: string;
 
   /** Filter for elements to apply rule to */
-  filter: string | string[] | ((node: any) => boolean);
+  filter: string | string[] | ((node: TurndownNode) => boolean);
 
   /** Replacement function */
-  replacement: (content: string, node: any) => string;
+  replacement: (content: string, node: TurndownNode) => string;
+}
+
+/** Turndown DOM node type */
+export interface TurndownNode {
+  nodeName: string;
+  textContent?: string | null;
+  outerHTML?: string;
+  className?: string;
+  alt?: string;
+  src?: string;
+  title?: string;
+  querySelector?: (selector: string) => TurndownNode | null;
+  getAttribute?: (name: string) => string | null;
 }

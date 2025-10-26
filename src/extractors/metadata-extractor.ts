@@ -133,7 +133,9 @@ function extractCanonicalUrl(
     if (baseUrl) {
       try {
         return new URL(canonical, baseUrl).href;
-      } catch {}
+      } catch {
+        // Ignore invalid URLs
+      }
     }
     return canonical;
   }

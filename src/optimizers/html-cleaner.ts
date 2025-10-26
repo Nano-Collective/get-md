@@ -27,7 +27,7 @@ export function cleanHTML(html: string, options: CleanOptions = {}): string {
   // 3. Remove comments
   $("*")
     .contents()
-    .filter((_, el) => el.type === "comment")
+    .filter((_, el) => (el as { type?: string }).type === "comment")
     .remove();
 
   // 4. Resolve relative URLs (do this before cleaning attributes so we still have src/href)
@@ -203,7 +203,7 @@ function removeEmptyElements($: cheerio.CheerioAPI): void {
 
   $("*").each((_, el) => {
     const $el = $(el);
-    const tagName = (el as any).tagName?.toLowerCase();
+    const tagName = (el as { tagName?: string }).tagName?.toLowerCase();
 
     // Skip important tags
     if (tagName && importantTags.has(tagName)) return;
@@ -224,7 +224,7 @@ function removeEmptyElements($: cheerio.CheerioAPI): void {
       }
 
       // Remove if only contains punctuation/whitespace like "|", "-", etc.
-      const meaningfulText = text.replace(/[\s\|\-_\.\,\:\;]+/g, "");
+      const meaningfulText = text.replace(/[\s|_.:;-]+/g, "");
       if (meaningfulText.length === 0 && !hasImportantChildren) {
         $el.remove();
         return;
@@ -248,7 +248,9 @@ function resolveRelativeUrls($: cheerio.CheerioAPI, baseUrl: string): void {
     if (src && !src.startsWith("http") && !src.startsWith("data:")) {
       try {
         $el.attr("src", new URL(src, base).href);
-      } catch {}
+      } catch {
+        // Ignore invalid URLs
+      }
     }
   });
 
@@ -264,7 +266,9 @@ function resolveRelativeUrls($: cheerio.CheerioAPI, baseUrl: string): void {
     ) {
       try {
         $el.attr("href", new URL(href, base).href);
-      } catch {}
+      } catch {
+        // Ignore invalid URLs
+      }
     }
   });
 }

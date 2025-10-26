@@ -7,6 +7,18 @@ import fs from "fs/promises";
 import { convertToMarkdown } from "./index.js";
 import type { MarkdownOptions } from "./types.js";
 
+interface CliOptions {
+  output?: string;
+  extract: boolean;
+  frontmatter: boolean;
+  images: boolean;
+  links: boolean;
+  tables: boolean;
+  maxLength: string;
+  baseUrl?: string;
+  verbose?: boolean;
+}
+
 const program = new Command();
 
 program
@@ -28,7 +40,7 @@ program
   .option("--max-length <n>", "Maximum output length", "1000000")
   .option("--base-url <url>", "Base URL for resolving relative links")
   .option("-v, --verbose", "Verbose output")
-  .action(async (input, options) => {
+  .action(async (input: string | undefined, options: CliOptions) => {
     try {
       // Get input HTML
       const html = await getInput(input);
@@ -65,7 +77,7 @@ async function getInput(input?: string): Promise<string> {
   if (!process.stdin.isTTY) {
     const chunks: Buffer[] = [];
     for await (const chunk of process.stdin) {
-      chunks.push(chunk);
+      chunks.push(Buffer.from(chunk as Uint8Array));
     }
     return Buffer.concat(chunks).toString("utf-8");
   }
@@ -77,7 +89,7 @@ async function getInput(input?: string): Promise<string> {
 
 async function handleMarkdownConversion(
   html: string,
-  options: any,
+  options: CliOptions,
 ): Promise<void> {
   const conversionOptions: MarkdownOptions = {
     extractContent: options.extract,
@@ -85,7 +97,7 @@ async function handleMarkdownConversion(
     includeImages: options.images,
     includeLinks: options.links,
     includeTables: options.tables,
-    maxLength: parseInt(options.maxLength),
+    maxLength: parseInt(options.maxLength, 10),
     baseUrl: options.baseUrl,
   };
 

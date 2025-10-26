@@ -13,6 +13,8 @@ import type {
   MarkdownOptions,
   MarkdownResult,
   ContentMetadata,
+  TurndownNode,
+  TurndownRule,
 } from "../types.js";
 
 export class MarkdownParser {
@@ -39,10 +41,7 @@ export class MarkdownParser {
     this.setupLLMRules();
   }
 
-  async convert(
-    html: string,
-    options: MarkdownOptions = {},
-  ): Promise<MarkdownResult> {
+  convert(html: string, options: MarkdownOptions = {}): MarkdownResult {
     const startTime = Date.now();
     const opts = this.normalizeOptions(options);
 
@@ -59,7 +58,7 @@ export class MarkdownParser {
           metadata = extracted.metadata;
           readabilitySuccess = true;
         }
-      } catch (error) {
+      } catch {
         // Fallback to raw HTML if Readability fails
         console.warn("Readability extraction failed, using raw HTML");
       }
@@ -192,17 +191,17 @@ export class MarkdownParser {
     this.turndown.addRule("tables", {
       filter: "table",
       replacement: (_content, node) => {
-        return this.convertTableToMarkdown(node as any);
+        return this.convertTableToMarkdown(node as TurndownNode);
       },
     });
 
     // Custom rule for code blocks with language detection
     this.turndown.addRule("codeBlocks", {
-      filter: (node: any) => {
-        return node.nodeName === "PRE" && node.querySelector("code") !== null;
+      filter: (node: TurndownNode) => {
+        return node.nodeName === "PRE" && node.querySelector?.("code") !== null;
       },
-      replacement: (_content, node: any) => {
-        const code = node.querySelector("code");
+      replacement: (_content, node: TurndownNode) => {
+        const code = node.querySelector?.("code");
         if (!code) return "";
 
         // Detect language from class name
@@ -219,11 +218,10 @@ export class MarkdownParser {
     // Custom rule for better image handling with alt text
     this.turndown.addRule("images", {
       filter: "img",
-      replacement: (_content, node: any) => {
-        const el = node;
-        const alt = el.alt || "Image";
-        const src = el.src || el.getAttribute("data-src") || "";
-        const title = el.title || "";
+      replacement: (_content, node: TurndownNode) => {
+        const alt = node.alt || "Image";
+        const src = node.src || node.getAttribute?.("data-src") || "";
+        const title = node.title || "";
 
         if (!src) return "";
 
@@ -237,7 +235,7 @@ export class MarkdownParser {
     // Custom rule for blockquotes with better formatting
     this.turndown.addRule("blockquotes", {
       filter: "blockquote",
-      replacement: (_content, node: any) => {
+      replacement: (_content, node: TurndownNode) => {
         const text = node.textContent || "";
         const lines = text.trim().split("\n");
         return (
@@ -248,9 +246,9 @@ export class MarkdownParser {
 
     // Remove empty paragraphs and whitespace-only elements
     this.turndown.addRule("removeEmpty", {
-      filter: (node: any) => {
+      filter: (node: TurndownNode) => {
         return (
-          ["p", "div", "span"].includes(node.nodeName.toLowerCase()) &&
+          ["P", "DIV", "SPAN"].includes(node.nodeName.toUpperCase()) &&
           (!node.textContent || node.textContent.trim() === "")
         );
       },
@@ -258,7 +256,7 @@ export class MarkdownParser {
     });
   }
 
-  private convertTableToMarkdown(table: any): string {
+  private convertTableToMarkdown(table: TurndownNode): string {
     const $ = cheerio.load(table.outerHTML || "");
     const headers: string[] = [];
     const rows: string[][] = [];
@@ -323,11 +321,11 @@ export class MarkdownParser {
     return markdown + "\n";
   }
 
-  private applyCustomRules(rules: any[]): void {
+  private applyCustomRules(rules: TurndownRule[]): void {
     rules.forEach((rule) => {
       this.turndown.addRule(rule.name, {
-        filter: rule.filter,
-        replacement: rule.replacement,
+        filter: rule.filter as unknown as TurndownService.Filter,
+        replacement: rule.replacement as TurndownService.ReplacementFunction,
       });
     });
   }
@@ -336,14 +334,14 @@ export class MarkdownParser {
     // Build YAML frontmatter
     const yaml: string[] = ["---"];
 
-    Object.entries(metadata).forEach(([key, value]) => {
+    Object.entries(metadata).forEach(([key, value]: [string, unknown]) => {
       if (value !== undefined && value !== null) {
         // Escape string values with quotes if they contain special chars
-        const yamlValue =
+        const yamlValue: string | number =
           typeof value === "string" && /[:\n\r]/.test(value)
             ? `"${value.replace(/"/g, '\\"')}"`
-            : value;
-        yaml.push(`${key}: ${yamlValue}`);
+            : (value as string | number);
+        yaml.push(`${key}: ${String(yamlValue)}`);
       }
     });
 
