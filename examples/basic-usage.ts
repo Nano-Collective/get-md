@@ -1,6 +1,6 @@
 // examples/basic-usage.ts
 
-import { convertToMarkdown } from "../src/index.js";
+import { convertToMarkdown } from "@nanocollective/get-md";
 
 async function main() {
   const html = `
@@ -31,9 +31,7 @@ console.log(result.markdown);
     </html>
   `;
 
-  const result = await convertToMarkdown(html, {
-    extractContent: true,
-  });
+  const result = await convertToMarkdown(html);
 
   console.log("=== Markdown Output ===");
   console.log(result.markdown);
