@@ -101,7 +101,7 @@ Convert HTML to clean, LLM-optimized Markdown.
   headers?: Record<string, string>; // Custom HTTP headers
   userAgent?: string;             // Custom user agent
 }
-```In
+```
 
 ## CLI Usage
 
@@ -111,7 +111,6 @@ get-md [input] [options]
 Options:
   -o, --output <file>       Output file (default: stdout)
   --no-extract              Disable Readability content extraction
-  --no-llm-optimize         Disable LLM-specific formatting
   --no-frontmatter          Exclude metadata from YAML frontmatter
   --no-images               Remove images from output
   --no-links                Remove links from output
@@ -143,7 +142,8 @@ console.log(result.markdown);
 ### With Metadata
 
 ```typescript
-const result = await convertToMarkdown(html, { includeMeta: true });
+// Metadata is included by default
+const result = await convertToMarkdown(html);
 console.log(result.markdown);
 // ---
 // title: "My Article"
@@ -153,19 +153,25 @@ console.log(result.markdown);
 //
 // # My Article
 // ...
+
+// To exclude metadata:
+const resultNoMeta = await convertToMarkdown(html, { includeMeta: false });
 ```
 
 ### CLI Examples
 
 ```bash
-# Convert with frontmatter
-get-md article.html --frontmatter -o article.md
+# Convert HTML file (frontmatter included by default)
+get-md article.html -o article.md
 
-# Fetch from URL (LLM optimization is enabled by default)
+# Fetch from URL
 get-md https://blog.example.com/post -o post.md
 
 # Remove images and links
 get-md article.html --no-images --no-links -o clean.md
+
+# Exclude frontmatter metadata
+get-md article.html --no-frontmatter -o clean.md
 ```
 
 ## Why get-md?
