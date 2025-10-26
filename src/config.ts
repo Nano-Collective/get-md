@@ -5,7 +5,7 @@ import type { MarkdownOptions } from './types.js';
 /** Default configuration for markdown conversion */
 export const DEFAULT_MARKDOWN_OPTIONS: Required<MarkdownOptions> = {
   extractContent: true,
-  includeMeta: false,
+  includeMeta: true,
   llmOptimized: true,
   customRules: [],
   preserveElements: [],

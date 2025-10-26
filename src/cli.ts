@@ -4,8 +4,8 @@
 
 import { Command } from "commander";
 import fs from "fs/promises";
-import { convertToMarkdown, convertToJSON, extractMetadata } from "./index.js";
-import type { MarkdownOptions, JsonExtractionOptions } from "./types.js";
+import { convertToMarkdown } from "./index.js";
+import type { MarkdownOptions } from "./types.js";
 
 const program = new Command();
 
@@ -20,65 +20,27 @@ program
 program
   .argument("[input]", "HTML file path, URL, or stdin")
   .option("-o, --output <file>", "Output file (default: stdout)")
-  .option("-j, --json <schema>", "Extract JSON using schema file")
   .option("--no-extract", "Disable Readability content extraction")
   .option("--no-llm-optimize", "Disable LLM-specific formatting")
-  .option("--frontmatter", "Include metadata as YAML frontmatter")
+  .option("--no-frontmatter", "Exclude metadata from YAML frontmatter")
   .option("--no-images", "Remove images from output")
   .option("--no-links", "Remove links from output")
   .option("--no-tables", "Remove tables from output")
   .option("--max-length <n>", "Maximum output length", "1000000")
   .option("--base-url <url>", "Base URL for resolving relative links")
-  .option(
-    "--selectors <file>",
-    "JSON file with custom selectors for JSON extraction"
-  )
-  .option(
-    "--partial",
-    "Return partial results on validation errors (JSON mode)"
-  )
   .option("-v, --verbose", "Verbose output")
   .action(async (input, options) => {
     try {
       // Get input HTML
       const html = await getInput(input);
 
-      if (options.json) {
-        // JSON extraction mode
-        await handleJsonExtraction(html, options);
-      } else {
-        // Markdown conversion mode
-        await handleMarkdownConversion(html, options);
-      }
+      // Markdown conversion mode
+      await handleMarkdownConversion(html, options);
     } catch (error) {
       console.error("Error:", (error as Error).message);
       if (options.verbose) {
         console.error((error as Error).stack);
       }
-      process.exit(1);
-    }
-  });
-
-// Metadata extraction command
-program
-  .command("meta")
-  .description("Extract only metadata from HTML")
-  .argument("<input>", "HTML file path or URL")
-  .option("--json", "Output as JSON")
-  .action(async (input, options) => {
-    try {
-      const html = await getInput(input);
-      const metadata = await extractMetadata(html);
-
-      if (options.json) {
-        console.log(JSON.stringify(metadata, null, 2));
-      } else {
-        Object.entries(metadata).forEach(([key, value]) => {
-          if (value) console.log(`${key}: ${value}`);
-        });
-      }
-    } catch (error) {
-      console.error("Error:", (error as Error).message);
       process.exit(1);
     }
   });
@@ -147,47 +109,5 @@ async function handleMarkdownConversion(
   }
 }
 
-async function handleJsonExtraction(html: string, options: any): Promise<void> {
-  // Load schema
-  const schemaContent = await fs.readFile(options.json, "utf-8");
-  const schema = JSON.parse(schemaContent);
-
-  // Load custom selectors if provided
-  let selectors: Record<string, string> | undefined;
-  if (options.selectors) {
-    const selectorsContent = await fs.readFile(options.selectors, "utf-8");
-    selectors = JSON.parse(selectorsContent);
-  }
-
-  const extractionOptions: JsonExtractionOptions = {
-    selectors,
-    partial: options.partial,
-    baseUrl: options.baseUrl,
-  };
-
-  const result = await convertToJSON(html, { schema }, extractionOptions);
-
-  // Format output
-  const output = JSON.stringify(result.data, null, 2);
-
-  // Write output
-  if (options.output) {
-    await fs.writeFile(options.output, output, "utf-8");
-    if (process.stdout.isTTY) {
-      console.error(`✓ Written to ${options.output}`);
-      if (options.verbose || result.warnings) {
-        if (result.warnings) {
-          result.warnings.forEach((w) => console.error(`  Warning: ${w}`));
-        }
-        if (options.verbose) {
-          console.error(`  Fields extracted: ${result.stats.fieldsExtracted}`);
-          console.error(`  Time: ${result.stats.processingTime}ms`);
-        }
-      }
-    }
-  } else {
-    console.log(output);
-  }
-}
 
 program.parse();

@@ -5,7 +5,7 @@ export interface MarkdownOptions {
   /** Extract only main content using Readability (default: true) */
   extractContent?: boolean;
 
-  /** Include metadata as YAML frontmatter (default: false) */
+  /** Include metadata as YAML frontmatter (default: true) */
   includeMeta?: boolean;
 
   /** LLM-optimized formatting (default: true) */

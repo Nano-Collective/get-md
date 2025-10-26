@@ -7,14 +7,13 @@ A fast, lightweight HTML to Markdown converter optimized for LLM consumption. Us
 
 ## Features
 
-- ⚡ **Lightning-fast**: Converts HTML to Markdown in <100ms
-- 🎯 **Intelligent extraction**: Uses Mozilla Readability to extract main content
-- 🤖 **LLM-optimized**: Consistent formatting perfect for AI consumption
-- 📊 **Schema-based extraction**: Extract structured JSON from HTML
-- 💻 **CLI included**: Use from the command line or as a library
-- 🔧 **TypeScript**: Full type definitions included
-- 🚀 **Zero downloads**: No models to download, works instantly
-- 📦 **Lightweight**: Small package size (~10MB)
+- **Lightning-fast**: Converts HTML to Markdown in <100ms
+- **Intelligent extraction**: Uses Mozilla Readability to extract main content
+- **LLM-optimized**: Consistent formatting perfect for AI consumption
+- **CLI included**: Use from the command line or as a library
+- **TypeScript**: Full type definitions included
+- **Zero downloads**: No models to download, works instantly
+- **Lightweight**: Small package size (~10MB)
 
 ## Installation
 
@@ -31,17 +30,17 @@ yarn add @nanocollective/get-md
 ### As a Library
 
 ```typescript
-import { convertToMarkdown } from '@nanocollective/get-md';
+import { convertToMarkdown } from "@nanocollective/get-md";
 
 // From HTML string
-const result = await convertToMarkdown('<h1>Hello</h1><p>World</p>');
+const result = await convertToMarkdown("<h1>Hello</h1><p>World</p>");
 console.log(result.markdown);
 // # Hello
 //
 // World
 
 // From URL
-const result = await convertToMarkdown('https://example.com');
+const result = await convertToMarkdown("https://example.com");
 console.log(result.metadata.title);
 
 // With options
@@ -70,9 +69,6 @@ get-md input.html -o output.md
 
 # With frontmatter
 get-md input.html --frontmatter
-
-# Extract only metadata
-get-md meta input.html
 ```
 
 ## API
@@ -82,15 +78,17 @@ get-md meta input.html
 Convert HTML to clean, LLM-optimized Markdown.
 
 **Parameters:**
+
 - `html` (string): Raw HTML string or URL to fetch
 - `options` (MarkdownOptions): Conversion options
 
 **Returns:** `Promise<MarkdownResult>`
 
 **Options:**
+
 ```typescript
 {
-  extractContent?: boolean;      // Use Readability extraction (default: true)
+  extractContent?: boolean;       // Use Readability extraction (default: true)
   llmOptimized?: boolean;         // LLM-specific formatting (default: true)
   includeMeta?: boolean;          // Include YAML frontmatter (default: false)
   includeImages?: boolean;        // Include images (default: true)
@@ -102,50 +100,16 @@ Convert HTML to clean, LLM-optimized Markdown.
 }
 ```
 
-### `convertToJSON(html, schema, options?)`
-
-Extract structured JSON from HTML using a JSON Schema.
-
-```typescript
-import { convertToJSON } from '@nanocollective/get-md';
-
-const schema = {
-  schema: {
-    type: 'object',
-    properties: {
-      title: { type: 'string' },
-      author: { type: 'string' },
-      date: { type: 'string' }
-    },
-    required: ['title']
-  }
-};
-
-const result = await convertToJSON(html, schema);
-console.log(result.data);
-```
-
-### `extractMetadata(html)`
-
-Extract only metadata without full conversion.
-
-```typescript
-import { extractMetadata } from '@nanocollective/get-md';
-
-const meta = await extractMetadata(html);
-console.log(meta.title, meta.author, meta.readingTime);
-```
-
 ### `fetchAndConvert(url, options?)`
 
 Fetch HTML from a URL and convert to markdown in one step.
 
 ```typescript
-import { fetchAndConvert } from '@nanocollective/get-md';
+import { fetchAndConvert } from "@nanocollective/get-md";
 
-const result = await fetchAndConvert('https://example.com', {
+const result = await fetchAndConvert("https://example.com", {
   timeout: 10000,
-  llmOptimized: true
+  llmOptimized: true,
 });
 ```
 
@@ -156,21 +120,16 @@ get-md [input] [options]
 
 Options:
   -o, --output <file>       Output file (default: stdout)
-  -j, --json <schema>       Extract JSON using schema file
   --no-extract              Disable Readability content extraction
   --no-llm-optimize         Disable LLM-specific formatting
-  --frontmatter             Include metadata as YAML frontmatter
+  --no-frontmatter          Exclude metadata from YAML frontmatter
   --no-images               Remove images from output
   --no-links                Remove links from output
   --no-tables               Remove tables from output
   --max-length <n>          Maximum output length (default: 1000000)
   --base-url <url>          Base URL for resolving relative links
-  --partial                 Return partial results on validation errors
   -v, --verbose             Verbose output
   -h, --help                Display help
-
-Commands:
-  meta <input>              Extract only metadata from HTML
 ```
 
 ## Examples
@@ -178,7 +137,7 @@ Commands:
 ### Basic Conversion
 
 ```typescript
-import { convertToMarkdown } from '@nanocollective/get-md';
+import { convertToMarkdown } from "@nanocollective/get-md";
 
 const html = `
   <article>
@@ -206,47 +165,17 @@ console.log(result.markdown);
 // ...
 ```
 
-### JSON Extraction
-
-```typescript
-import { convertToJSON } from '@nanocollective/get-md';
-
-const schema = {
-  schema: {
-    type: 'object',
-    properties: {
-      products: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            name: { type: 'string' },
-            price: { type: 'number' }
-          }
-        }
-      }
-    }
-  }
-};
-
-const result = await convertToJSON(html, schema);
-console.log(result.data.products);
-```
-
 ### CLI Examples
 
 ```bash
 # Convert with frontmatter
 get-md article.html --frontmatter -o article.md
 
-# Extract JSON
-get-md products.html -j schema.json -o products.json
-
 # Fetch from URL (LLM optimization is enabled by default)
 get-md https://blog.example.com/post -o post.md
 
-# Get metadata only
-get-md meta https://example.com --json
+# Remove images and links
+get-md article.html --no-images --no-links -o clean.md
 ```
 
 ## Why get-md?
