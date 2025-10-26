@@ -1,19 +1,19 @@
 // src/parsers/markdown-parser.ts
 
-import TurndownService from 'turndown';
-import { gfm } from 'turndown-plugin-gfm';
-import { Readability } from '@mozilla/readability';
-import { JSDOM } from 'jsdom';
-import * as cheerio from 'cheerio';
-import { cleanHTML } from '../optimizers/html-cleaner.js';
-import { formatForLLM } from '../optimizers/llm-formatter.js';
-import { enhanceStructure } from '../optimizers/structure-enhancer.js';
-import { extractMetadata } from '../extractors/metadata-extractor.js';
+import TurndownService from "turndown";
+import { gfm } from "turndown-plugin-gfm";
+import { Readability } from "@mozilla/readability";
+import { JSDOM } from "jsdom";
+import * as cheerio from "cheerio";
+import { cleanHTML } from "../optimizers/html-cleaner.js";
+import { formatForLLM } from "../optimizers/llm-formatter.js";
+import { enhanceStructure } from "../optimizers/structure-enhancer.js";
+import { extractMetadata } from "../extractors/metadata-extractor.js";
 import type {
   MarkdownOptions,
   MarkdownResult,
   ContentMetadata,
-} from '../types.js';
+} from "../types.js";
 
 export class MarkdownParser {
   private turndown: TurndownService;
@@ -21,15 +21,15 @@ export class MarkdownParser {
   constructor() {
     // Initialize Turndown with LLM-friendly settings
     this.turndown = new TurndownService({
-      headingStyle: 'atx', // Use # style headings
-      hr: '---', // Horizontal rule style
-      bulletListMarker: '-', // Use - for lists
-      codeBlockStyle: 'fenced', // Use ``` for code blocks
-      fence: '```', // Fence marker
-      emDelimiter: '*', // Emphasis delimiter
-      strongDelimiter: '**', // Strong delimiter
-      linkStyle: 'inlined', // Inline links
-      linkReferenceStyle: 'full', // Full reference links
+      headingStyle: "atx", // Use # style headings
+      hr: "---", // Horizontal rule style
+      bulletListMarker: "-", // Use - for lists
+      codeBlockStyle: "fenced", // Use ``` for code blocks
+      fence: "```", // Fence marker
+      emDelimiter: "*", // Emphasis delimiter
+      strongDelimiter: "**", // Strong delimiter
+      linkStyle: "inlined", // Inline links
+      linkReferenceStyle: "full", // Full reference links
     });
 
     // Add GitHub Flavored Markdown support (tables, strikethrough, etc.)
@@ -61,7 +61,7 @@ export class MarkdownParser {
         }
       } catch (error) {
         // Fallback to raw HTML if Readability fails
-        console.warn('Readability extraction failed, using raw HTML');
+        console.warn("Readability extraction failed, using raw HTML");
       }
     }
 
@@ -105,15 +105,15 @@ export class MarkdownParser {
     // Step 11: Validate length
     if (opts.maxLength && markdown.length > opts.maxLength) {
       markdown =
-        markdown.substring(0, opts.maxLength) + '\n\n[Content truncated]';
+        markdown.substring(0, opts.maxLength) + "\n\n[Content truncated]";
     }
 
     const processingTime = Date.now() - startTime;
 
     // Calculate statistics
     const $ = cheerio.load(contentHtml);
-    const imageCount = opts.includeImages ? $('img').length : 0;
-    const linkCount = opts.includeLinks ? $('a').length : 0;
+    const imageCount = opts.includeImages ? $("img").length : 0;
+    const linkCount = opts.includeLinks ? $("a").length : 0;
 
     return {
       markdown,
@@ -146,29 +146,34 @@ export class MarkdownParser {
     }
 
     return {
-      content: article.content || '',
+      content: article.content || "",
       metadata: {
         title: article.title || undefined,
         author: article.byline || undefined,
         excerpt: article.excerpt || undefined,
         siteName: article.siteName || undefined,
-        readingTime: article.length ? Math.ceil(article.length / 200) : undefined, // ~200 words per minute
+        readingTime: article.length
+          ? Math.ceil(article.length / 200)
+          : undefined, // ~200 words per minute
         wordCount: article.length || undefined,
       },
     };
   }
 
-  private filterContent(html: string, options: Required<MarkdownOptions>): string {
+  private filterContent(
+    html: string,
+    options: Required<MarkdownOptions>
+  ): string {
     const $ = cheerio.load(html);
 
     // Remove images if disabled
     if (!options.includeImages) {
-      $('img, picture, figure').remove();
+      $("img, picture, figure").remove();
     }
 
     // Remove links if disabled (keep text content)
     if (!options.includeLinks) {
-      $('a').each((_, el) => {
+      $("a").each((_, el) => {
         const $el = $(el);
         $el.replaceWith($el.text());
       });
@@ -176,7 +181,7 @@ export class MarkdownParser {
 
     // Remove tables if disabled
     if (!options.includeTables) {
-      $('table').remove();
+      $("table").remove();
     }
 
     return $.html();
@@ -184,43 +189,43 @@ export class MarkdownParser {
 
   private setupLLMRules(): void {
     // Custom rule for better table formatting
-    this.turndown.addRule('tables', {
-      filter: 'table',
+    this.turndown.addRule("tables", {
+      filter: "table",
       replacement: (_content, node) => {
         return this.convertTableToMarkdown(node as any);
       },
     });
 
     // Custom rule for code blocks with language detection
-    this.turndown.addRule('codeBlocks', {
+    this.turndown.addRule("codeBlocks", {
       filter: (node: any) => {
-        return node.nodeName === 'PRE' && node.querySelector('code') !== null;
+        return node.nodeName === "PRE" && node.querySelector("code") !== null;
       },
       replacement: (_content, node: any) => {
-        const code = node.querySelector('code');
-        if (!code) return '';
+        const code = node.querySelector("code");
+        if (!code) return "";
 
         // Detect language from class name
-        const className = code.className || '';
+        const className = code.className || "";
         const langMatch = className.match(/language-(\w+)|lang-(\w+)/);
-        const language = langMatch?.[1] || langMatch?.[2] || '';
+        const language = langMatch?.[1] || langMatch?.[2] || "";
 
-        const codeContent = code.textContent || '';
+        const codeContent = code.textContent || "";
 
         return `\n\`\`\`${language}\n${codeContent}\n\`\`\`\n`;
       },
     });
 
     // Custom rule for better image handling with alt text
-    this.turndown.addRule('images', {
-      filter: 'img',
+    this.turndown.addRule("images", {
+      filter: "img",
       replacement: (_content, node: any) => {
         const el = node;
-        const alt = el.alt || 'Image';
-        const src = el.src || el.getAttribute('data-src') || '';
-        const title = el.title || '';
+        const alt = el.alt || "Image";
+        const src = el.src || el.getAttribute("data-src") || "";
+        const title = el.title || "";
 
-        if (!src) return '';
+        if (!src) return "";
 
         if (title) {
           return `![${alt}](${src} "${title}")`;
@@ -230,90 +235,92 @@ export class MarkdownParser {
     });
 
     // Custom rule for blockquotes with better formatting
-    this.turndown.addRule('blockquotes', {
-      filter: 'blockquote',
+    this.turndown.addRule("blockquotes", {
+      filter: "blockquote",
       replacement: (_content, node: any) => {
-        const text = node.textContent || '';
-        const lines = text.trim().split('\n');
-        return '\n' + lines.map((line: string) => `> ${line}`).join('\n') + '\n';
+        const text = node.textContent || "";
+        const lines = text.trim().split("\n");
+        return (
+          "\n" + lines.map((line: string) => `> ${line}`).join("\n") + "\n"
+        );
       },
     });
 
     // Remove empty paragraphs and whitespace-only elements
-    this.turndown.addRule('removeEmpty', {
+    this.turndown.addRule("removeEmpty", {
       filter: (node: any) => {
         return (
-          ['p', 'div', 'span'].includes(node.nodeName.toLowerCase()) &&
-          (!node.textContent || node.textContent.trim() === '')
+          ["p", "div", "span"].includes(node.nodeName.toLowerCase()) &&
+          (!node.textContent || node.textContent.trim() === "")
         );
       },
-      replacement: () => '',
+      replacement: () => "",
     });
   }
 
   private convertTableToMarkdown(table: any): string {
-    const $ = cheerio.load(table.outerHTML || '');
+    const $ = cheerio.load(table.outerHTML || "");
     const headers: string[] = [];
     const rows: string[][] = [];
     const alignments: string[] = [];
 
     // Extract headers and alignments
-    $('thead tr, tr:first-child')
+    $("thead tr, tr:first-child")
       .first()
-      .find('th, td')
+      .find("th, td")
       .each((_, el) => {
         const $el = $(el);
-        headers.push($el.text().trim().replace(/\n/g, ' '));
+        headers.push($el.text().trim().replace(/\n/g, " "));
 
         // Detect alignment from style or align attribute
         const align =
-          $el.attr('align') ||
-          ($el.css('text-align') === 'center'
-            ? 'center'
-            : $el.css('text-align') === 'right'
-              ? 'right'
-              : 'left');
+          $el.attr("align") ||
+          ($el.css("text-align") === "center"
+            ? "center"
+            : $el.css("text-align") === "right"
+              ? "right"
+              : "left");
         alignments.push(align);
       });
 
-    if (headers.length === 0) return '';
+    if (headers.length === 0) return "";
 
     // Extract rows
     const rowSelector =
-      $('thead').length > 0 ? 'tbody tr' : 'tr:not(:first-child)';
+      $("thead").length > 0 ? "tbody tr" : "tr:not(:first-child)";
     $(rowSelector).each((_, tr) => {
       const row: string[] = [];
       $(tr)
-        .find('td')
+        .find("td")
         .each((_, td) => {
-          row.push($(td).text().trim().replace(/\n/g, ' '));
+          row.push($(td).text().trim().replace(/\n/g, " "));
         });
       if (row.length > 0) {
         // Ensure row has same number of columns as headers
         while (row.length < headers.length) {
-          row.push('');
+          row.push("");
         }
         rows.push(row.slice(0, headers.length));
       }
     });
 
     // Build markdown table
-    let markdown = '\n| ' + headers.join(' | ') + ' |\n';
+    let markdown = "\n| " + headers.join(" | ") + " |\n";
 
     // Add alignment row
     const alignRow = alignments.map((align) => {
-      if (align === 'center') return ':---:';
-      if (align === 'right') return '---:';
-      return '---';
+      if (align === "center") return ":---:";
+      if (align === "right") return "---:";
+      return "---";
     });
-    markdown += '| ' + alignRow.join(' | ') + ' |\n';
+    markdown += "| " + alignRow.join(" | ") + " |\n";
 
     // Add data rows
     rows.forEach((row) => {
-      markdown += '| ' + row.join(' | ') + ' |\n';
+      markdown += "| " + row.join(" | ") + " |\n";
     });
 
-    return markdown + '\n';
+    return markdown + "\n";
   }
 
   private applyCustomRules(rules: any[]): void {
@@ -327,48 +334,48 @@ export class MarkdownParser {
 
   private addFrontmatter(markdown: string, metadata: ContentMetadata): string {
     // Build YAML frontmatter
-    const yaml: string[] = ['---'];
+    const yaml: string[] = ["---"];
 
     Object.entries(metadata).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
         // Escape string values with quotes if they contain special chars
         const yamlValue =
-          typeof value === 'string' && /[:\n\r]/.test(value)
+          typeof value === "string" && /[:\n\r]/.test(value)
             ? `"${value.replace(/"/g, '\\"')}"`
             : value;
         yaml.push(`${key}: ${yamlValue}`);
       }
     });
 
-    yaml.push('---');
+    yaml.push("---");
 
-    return yaml.join('\n') + '\n\n' + markdown;
+    return yaml.join("\n") + "\n\n" + markdown;
   }
 
   private postProcess(markdown: string): string {
     // Remove excessive blank lines (more than 2 consecutive)
-    markdown = markdown.replace(/\n{3,}/g, '\n\n');
+    markdown = markdown.replace(/\n{3,}/g, "\n\n");
 
     // Clean up list formatting (remove blank lines within lists)
     markdown = markdown.replace(
       /^(-|\d+\.)\s+(.+?)(\n\n)(-|\d+\.)/gm,
-      '$1 $2\n$4'
+      "$1 $2\n$4"
     );
 
     // Ensure code blocks have spacing
-    markdown = markdown.replace(/([^\n])\n```/g, '$1\n\n```');
-    markdown = markdown.replace(/```\n([^`\n])/g, '```\n\n$1');
+    markdown = markdown.replace(/([^\n])\n```/g, "$1\n\n```");
+    markdown = markdown.replace(/```\n([^`\n])/g, "```\n\n$1");
 
     // Fix heading spacing (ensure blank line before headings, but not right after frontmatter)
-    markdown = markdown.replace(/([^\n-])\n(#{1,6}\s)/g, '$1\n\n$2');
+    markdown = markdown.replace(/([^\n-])\n(#{1,6}\s)/g, "$1\n\n$2");
 
     // Ensure consistent spacing around horizontal rules (but not frontmatter delimiters)
     // Only add spacing to --- that are not at the start and not part of frontmatter
-    const lines = markdown.split('\n');
+    const lines = markdown.split("\n");
     let frontmatterCount = 0;
 
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i].trim() === '---') {
+      if (lines[i].trim() === "---") {
         frontmatterCount++;
         if (frontmatterCount <= 2) {
           continue;
@@ -376,24 +383,29 @@ export class MarkdownParser {
       }
 
       // After frontmatter is closed, add spacing around horizontal rules
-      if (frontmatterCount >= 2 && lines[i].trim() === '---' && i > 0 && i < lines.length - 1) {
-        if (lines[i - 1].trim() !== '' && !lines[i - 1].startsWith('#')) {
-          lines.splice(i, 0, '');
+      if (
+        frontmatterCount >= 2 &&
+        lines[i].trim() === "---" &&
+        i > 0 &&
+        i < lines.length - 1
+      ) {
+        if (lines[i - 1].trim() !== "" && !lines[i - 1].startsWith("#")) {
+          lines.splice(i, 0, "");
           i++;
         }
-        if (lines[i + 1].trim() !== '' && !lines[i + 1].startsWith('#')) {
-          lines.splice(i + 1, 0, '');
+        if (lines[i + 1].trim() !== "" && !lines[i + 1].startsWith("#")) {
+          lines.splice(i + 1, 0, "");
           i++;
         }
       }
     }
 
-    markdown = lines.join('\n');
+    markdown = lines.join("\n");
 
     // Remove trailing whitespace from lines
-    markdown = markdown.replace(/[^\S\n]+$/gm, '');
+    markdown = markdown.replace(/[^\S\n]+$/gm, "");
 
-    return markdown.trim() + '\n';
+    return markdown.trim() + "\n";
   }
 
   private normalizeOptions(
@@ -410,7 +422,7 @@ export class MarkdownParser {
       includeImages: options.includeImages ?? true,
       includeLinks: options.includeLinks ?? true,
       includeTables: options.includeTables ?? true,
-      aggressiveCleanup: options.aggressiveCleanup ?? true,
+      aggressiveCleanup: options.aggressiveCleanup ?? true, // Back to true with smarter selectors
     } as Required<MarkdownOptions>;
   }
 }

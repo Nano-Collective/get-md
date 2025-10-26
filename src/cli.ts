@@ -2,38 +2,42 @@
 
 // src/cli.ts
 
-import { Command } from 'commander';
-import fs from 'fs/promises';
-import {
-  convertToMarkdown,
-  convertToJSON,
-  extractMetadata,
-} from './index.js';
-import type { MarkdownOptions, JsonExtractionOptions } from './types.js';
+import { Command } from "commander";
+import fs from "fs/promises";
+import { convertToMarkdown, convertToJSON, extractMetadata } from "./index.js";
+import type { MarkdownOptions, JsonExtractionOptions } from "./types.js";
 
 const program = new Command();
 
 program
-  .name('get-md')
-  .description('Convert HTML to LLM-optimized Markdown or extract structured JSON')
-  .version('1.0.0');
+  .name("get-md")
+  .description(
+    "Convert HTML to LLM-optimized Markdown or extract structured JSON"
+  )
+  .version("1.0.0");
 
 // Main conversion command
 program
-  .argument('[input]', 'HTML file path, URL, or stdin')
-  .option('-o, --output <file>', 'Output file (default: stdout)')
-  .option('-j, --json <schema>', 'Extract JSON using schema file')
-  .option('--no-extract', 'Disable Readability content extraction')
-  .option('--no-llm-optimize', 'Disable LLM-specific formatting')
-  .option('--frontmatter', 'Include metadata as YAML frontmatter')
-  .option('--no-images', 'Remove images from output')
-  .option('--no-links', 'Remove links from output')
-  .option('--no-tables', 'Remove tables from output')
-  .option('--max-length <n>', 'Maximum output length', '1000000')
-  .option('--base-url <url>', 'Base URL for resolving relative links')
-  .option('--selectors <file>', 'JSON file with custom selectors for JSON extraction')
-  .option('--partial', 'Return partial results on validation errors (JSON mode)')
-  .option('-v, --verbose', 'Verbose output')
+  .argument("[input]", "HTML file path, URL, or stdin")
+  .option("-o, --output <file>", "Output file (default: stdout)")
+  .option("-j, --json <schema>", "Extract JSON using schema file")
+  .option("--no-extract", "Disable Readability content extraction")
+  .option("--no-llm-optimize", "Disable LLM-specific formatting")
+  .option("--frontmatter", "Include metadata as YAML frontmatter")
+  .option("--no-images", "Remove images from output")
+  .option("--no-links", "Remove links from output")
+  .option("--no-tables", "Remove tables from output")
+  .option("--max-length <n>", "Maximum output length", "1000000")
+  .option("--base-url <url>", "Base URL for resolving relative links")
+  .option(
+    "--selectors <file>",
+    "JSON file with custom selectors for JSON extraction"
+  )
+  .option(
+    "--partial",
+    "Return partial results on validation errors (JSON mode)"
+  )
+  .option("-v, --verbose", "Verbose output")
   .action(async (input, options) => {
     try {
       // Get input HTML
@@ -47,7 +51,7 @@ program
         await handleMarkdownConversion(html, options);
       }
     } catch (error) {
-      console.error('Error:', (error as Error).message);
+      console.error("Error:", (error as Error).message);
       if (options.verbose) {
         console.error((error as Error).stack);
       }
@@ -57,10 +61,10 @@ program
 
 // Metadata extraction command
 program
-  .command('meta')
-  .description('Extract only metadata from HTML')
-  .argument('<input>', 'HTML file path or URL')
-  .option('--json', 'Output as JSON')
+  .command("meta")
+  .description("Extract only metadata from HTML")
+  .argument("<input>", "HTML file path or URL")
+  .option("--json", "Output as JSON")
   .action(async (input, options) => {
     try {
       const html = await getInput(input);
@@ -74,17 +78,14 @@ program
         });
       }
     } catch (error) {
-      console.error('Error:', (error as Error).message);
+      console.error("Error:", (error as Error).message);
       process.exit(1);
     }
   });
 
 async function getInput(input?: string): Promise<string> {
   // Read from URL
-  if (input && input.startsWith('http')) {
-    if (process.stdout.isTTY) {
-      process.stderr.write('Fetching URL...\n');
-    }
+  if (input && input.startsWith("http")) {
     const response = await fetch(input, {
       signal: AbortSignal.timeout(15000),
     });
@@ -95,8 +96,8 @@ async function getInput(input?: string): Promise<string> {
   }
 
   // Read from file
-  if (input && input !== '-') {
-    return await fs.readFile(input, 'utf-8');
+  if (input && input !== "-") {
+    return await fs.readFile(input, "utf-8");
   }
 
   // Read from stdin
@@ -105,11 +106,11 @@ async function getInput(input?: string): Promise<string> {
     for await (const chunk of process.stdin) {
       chunks.push(chunk);
     }
-    return Buffer.concat(chunks).toString('utf-8');
+    return Buffer.concat(chunks).toString("utf-8");
   }
 
   throw new Error(
-    'No input provided. Provide a file path, URL, or pipe to stdin.'
+    "No input provided. Provide a file path, URL, or pipe to stdin."
   );
 }
 
@@ -132,7 +133,7 @@ async function handleMarkdownConversion(
 
   // Write output
   if (options.output) {
-    await fs.writeFile(options.output, result.markdown, 'utf-8');
+    await fs.writeFile(options.output, result.markdown, "utf-8");
     if (process.stdout.isTTY) {
       console.error(`✓ Written to ${options.output}`);
       if (options.verbose) {
@@ -146,18 +147,15 @@ async function handleMarkdownConversion(
   }
 }
 
-async function handleJsonExtraction(
-  html: string,
-  options: any
-): Promise<void> {
+async function handleJsonExtraction(html: string, options: any): Promise<void> {
   // Load schema
-  const schemaContent = await fs.readFile(options.json, 'utf-8');
+  const schemaContent = await fs.readFile(options.json, "utf-8");
   const schema = JSON.parse(schemaContent);
 
   // Load custom selectors if provided
   let selectors: Record<string, string> | undefined;
   if (options.selectors) {
-    const selectorsContent = await fs.readFile(options.selectors, 'utf-8');
+    const selectorsContent = await fs.readFile(options.selectors, "utf-8");
     selectors = JSON.parse(selectorsContent);
   }
 
@@ -174,7 +172,7 @@ async function handleJsonExtraction(
 
   // Write output
   if (options.output) {
-    await fs.writeFile(options.output, output, 'utf-8');
+    await fs.writeFile(options.output, output, "utf-8");
     if (process.stdout.isTTY) {
       console.error(`✓ Written to ${options.output}`);
       if (options.verbose || result.warnings) {
@@ -182,9 +180,7 @@ async function handleJsonExtraction(
           result.warnings.forEach((w) => console.error(`  Warning: ${w}`));
         }
         if (options.verbose) {
-          console.error(
-            `  Fields extracted: ${result.stats.fieldsExtracted}`
-          );
+          console.error(`  Fields extracted: ${result.stats.fieldsExtracted}`);
           console.error(`  Time: ${result.stats.processingTime}ms`);
         }
       }
