@@ -15,6 +15,12 @@ export const DEFAULT_MARKDOWN_OPTIONS: Required<MarkdownOptions> = {
   includeLinks: true,
   includeTables: true,
   aggressiveCleanup: true,
+  isUrl: false,
+  timeout: 15000,
+  followRedirects: true,
+  maxRedirects: 5,
+  headers: undefined as any,
+  userAgent: undefined as any,
 };
 
 /** Default user agent for fetching URLs */

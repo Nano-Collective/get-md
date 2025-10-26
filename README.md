@@ -39,17 +39,19 @@ console.log(result.markdown);
 //
 // World
 
-// From URL
+// From URL (auto-detected)
 const result = await convertToMarkdown("https://example.com");
 console.log(result.metadata.title);
 
-// With options
-const result = await convertToMarkdown(html, {
+// From URL with custom timeout and headers
+const result = await convertToMarkdown("https://example.com", {
+  timeout: 10000,
+  headers: { Authorization: "Bearer token" },
   llmOptimized: true,
-  extractContent: true,
-  includeMeta: true,
-  includeImages: true,
 });
+
+// Force URL mode if auto-detection fails
+const result = await convertToMarkdown("example.com", { isUrl: true });
 ```
 
 ### As a CLI
@@ -66,9 +68,6 @@ get-md https://example.com
 
 # Save to file
 get-md input.html -o output.md
-
-# With frontmatter
-get-md input.html --frontmatter
 ```
 
 ## API
@@ -88,29 +87,25 @@ Convert HTML to clean, LLM-optimized Markdown.
 
 ```typescript
 {
+  // Content options
   extractContent?: boolean;       // Use Readability extraction (default: true)
   llmOptimized?: boolean;         // LLM-specific formatting (default: true)
-  includeMeta?: boolean;          // Include YAML frontmatter (default: false)
+  includeMeta?: boolean;          // Include YAML frontmatter (default: true)
   includeImages?: boolean;        // Include images (default: true)
   includeLinks?: boolean;         // Include links (default: true)
   includeTables?: boolean;        // Include tables (default: true)
   aggressiveCleanup?: boolean;    // Remove ads, nav, etc. (default: true)
   maxLength?: number;             // Max output length (default: 1000000)
-  baseUrl?: string;               // Base URL for relative links
+  baseUrl?: string;               // Base URL for resolving relative links
+
+  // URL fetch options (only used when input is a URL)
+  isUrl?: boolean;                // Force treat input as URL (default: auto-detect)
+  timeout?: number;               // Request timeout in ms (default: 15000)
+  followRedirects?: boolean;      // Follow redirects (default: true)
+  maxRedirects?: number;          // Max redirects to follow (default: 5)
+  headers?: Record<string, string>; // Custom HTTP headers
+  userAgent?: string;             // Custom user agent
 }
-```
-
-### `fetchAndConvert(url, options?)`
-
-Fetch HTML from a URL and convert to markdown in one step.
-
-```typescript
-import { fetchAndConvert } from "@nanocollective/get-md";
-
-const result = await fetchAndConvert("https://example.com", {
-  timeout: 10000,
-  llmOptimized: true,
-});
 ```
 
 ## CLI Usage

@@ -7,16 +7,16 @@ import type {
   MarkdownOptions,
   MarkdownResult,
   ContentMetadata,
-  FetchOptions,
   TurndownRule,
   ConversionStats,
 } from './types.js';
+import type { FetchOptions } from './types.js';
 
 /**
  * Convert HTML to clean, LLM-optimized Markdown
  *
  * @param html - Raw HTML string or URL to fetch
- * @param options - Conversion options
+ * @param options - Conversion options (including fetch options for URLs)
  * @returns Promise resolving to markdown result
  *
  * @example
@@ -33,69 +33,46 @@ import type {
  * // From URL
  * const result = await convertToMarkdown('https://example.com');
  * console.log(result.metadata.title);
+ *
+ * // From URL with custom fetch options
+ * const result = await convertToMarkdown('https://example.com', {
+ *   timeout: 10000,
+ *   headers: { 'Authorization': 'Bearer token' },
+ *   llmOptimized: true
+ * });
+ *
+ * // Force URL mode if auto-detection fails
+ * const result = await convertToMarkdown('example.com', { isUrl: true });
  * ```
  */
 export async function convertToMarkdown(
   html: string,
   options?: MarkdownOptions
 ): Promise<MarkdownResult> {
-  // Check if input is a URL
-  if (isValidUrl(html)) {
-    return fetchAndConvert(html, options);
+  // Check if input is a URL (or forced to be treated as one)
+  if (options?.isUrl || isValidUrl(html)) {
+    // Extract fetch options
+    const fetchOptions: FetchOptions = {
+      timeout: options?.timeout,
+      followRedirects: options?.followRedirects,
+      maxRedirects: options?.maxRedirects,
+      headers: options?.headers,
+      userAgent: options?.userAgent,
+    };
+
+    // Fetch HTML from URL
+    const fetchedHtml = await fetchUrl(html, fetchOptions);
+
+    // Parse with base URL set to the fetched URL
+    const parser = new MarkdownParser();
+    return parser.convert(fetchedHtml, {
+      ...options,
+      baseUrl: options?.baseUrl || html,
+    });
   }
 
   const parser = new MarkdownParser();
   return parser.convert(html, options);
-}
-
-/**
- * Fetch HTML from a URL and convert to markdown
- *
- * @param url - URL to fetch
- * @param options - Fetch and conversion options
- * @returns Promise resolving to markdown result
- *
- * @example
- * ```typescript
- * import { fetchAndConvert } from '@nanocollective/get-md';
- *
- * const result = await fetchAndConvert('https://example.com', {
- *   timeout: 10000,
- *   llmOptimized: true
- * });
- * ```
- */
-export async function fetchAndConvert(
-  url: string,
-  options?: FetchOptions & MarkdownOptions
-): Promise<MarkdownResult> {
-  // Extract fetch options
-  const fetchOptions: FetchOptions = {
-    timeout: options?.timeout,
-    followRedirects: options?.followRedirects,
-    maxRedirects: options?.maxRedirects,
-    headers: options?.headers,
-    userAgent: options?.userAgent,
-  };
-
-  // Extract markdown options
-  const markdownOptions: MarkdownOptions = {
-    extractContent: options?.extractContent,
-    includeMeta: options?.includeMeta,
-    llmOptimized: options?.llmOptimized,
-    customRules: options?.customRules,
-    preserveElements: options?.preserveElements,
-    maxLength: options?.maxLength,
-    baseUrl: options?.baseUrl || url,
-    includeImages: options?.includeImages,
-    includeLinks: options?.includeLinks,
-    includeTables: options?.includeTables,
-    aggressiveCleanup: options?.aggressiveCleanup,
-  };
-
-  const html = await fetchUrl(url, fetchOptions);
-  const parser = new MarkdownParser();
-  return parser.convert(html, markdownOptions);
 }
 
 /**
@@ -114,6 +91,5 @@ export type {
   MarkdownResult,
   ContentMetadata,
   ConversionStats,
-  FetchOptions,
   TurndownRule,
 };

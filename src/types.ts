@@ -34,6 +34,24 @@ export interface MarkdownOptions {
 
   /** Aggressive noise removal (default: true) */
   aggressiveCleanup?: boolean;
+
+  /** Force treat input as URL (bypasses auto-detection) */
+  isUrl?: boolean;
+
+  /** Request timeout in milliseconds (default: 15000) */
+  timeout?: number;
+
+  /** Follow redirects (default: true) */
+  followRedirects?: boolean;
+
+  /** Maximum redirects to follow (default: 5) */
+  maxRedirects?: number;
+
+  /** Custom headers for URL fetching */
+  headers?: Record<string, string>;
+
+  /** User agent string for URL fetching */
+  userAgent?: string;
 }
 
 /** Result from markdown conversion */
