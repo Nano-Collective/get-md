@@ -1,7 +1,7 @@
 # get-md
 
 > [!WARNING]
-> This package was just released and may be unstable. Please report any issues you encounter and head caution when using in production as there may be issues and breaking changes in new versions. We're working hard to remove this warning.
+> This package was just released and may be unstable. Please report any issues you encounter and have caution when using in production as there may be issues and breaking changes in new versions. We're working hard to remove this warning.
 
 A fast, lightweight HTML to Markdown converter optimized for LLM consumption. Uses proven parsing libraries to deliver clean, well-structured markdown with intelligent content extraction and noise filtering.
 
