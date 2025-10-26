@@ -82,7 +82,6 @@ Before contributing, please:
    ```
 
 2. **Make your changes:**
-
    - Follow the existing code style
    - Add appropriate TypeScript types
    - Update documentation if needed
@@ -139,13 +138,11 @@ All new features and bug fixes should include appropriate tests:
 In addition to automated tests, manual testing is important:
 
 1. **Test conversion quality:**
-
    - Different HTML structures (nested elements, complex layouts)
    - Various HTML tags and attributes
    - Edge cases (empty elements, malformed HTML)
 
 2. **Test CLI functionality:**
-
    - Different input sources (stdin, file, URL)
    - Various CLI options and flags
    - Output to file vs stdout
@@ -172,9 +169,9 @@ import test from "ava";
 import { convertToMarkdown } from "./converter.js";
 
 test("converts basic HTML to markdown", async (t) => {
-	const result = await convertToMarkdown("<h1>Hello</h1><p>World</p>");
-	t.true(result.markdown.includes("# Hello"));
-	t.true(result.markdown.includes("World"));
+  const result = await convertToMarkdown("<h1>Hello</h1><p>World</p>");
+  t.true(result.markdown.includes("# Hello"));
+  t.true(result.markdown.includes("World"));
 });
 ```
 
