@@ -1,8 +1,5 @@
 # get-md
 
-[![npm version](https://img.shields.io/npm/v/@nanocollective/get-md.svg)](https://www.npmjs.com/package/@nanocollective/get-md)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
 A fast, lightweight HTML to Markdown converter optimized for LLM consumption. Uses proven parsing libraries to deliver clean, well-structured markdown with intelligent content extraction and noise filtering.
 
 ## Features
@@ -196,15 +193,16 @@ get-md article.html --no-images --no-links -o clean.md
 - **Language**: TypeScript with ESM support
 - **Node**: >=18
 
-## License
+## Community
 
-MIT © 2025 Nano Collective
+We're a small community-led team building local and privacy-first AI solutions under the [Nano Collective](https://nanocollective.org) and would love your help! Whether you're interested in contributing code, documentation, or just being part of our community, there are several ways to get involved.
 
-## Contributing
+**If you want to contribute to the code:**
 
-Contributions are welcome! Please check out our [GitHub repository](https://github.com/nano-collective/get-md).
+- Read our detailed [CONTRIBUTING.md](CONTRIBUTING.md) guide for information on development setup, coding standards, and how to submit your changes.
 
-## Support
+**If you want to be part of our community or help with other aspects like design or marketing:**
 
-- [Issues](https://github.com/nano-collective/get-md/issues)
-- [Discussions](https://github.com/nano-collective/get-md/discussions)
+- Join our Discord server to connect with other users, ask questions, share ideas, and get help: [Join our Discord server](https://discord.gg/ktPDV6rekE)
+
+- Head to our GitHub issues or discussions to open and join current conversations with others in the community.

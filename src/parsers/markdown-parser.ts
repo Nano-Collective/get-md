@@ -445,7 +445,7 @@ export class MarkdownParser {
   ): Required<MarkdownOptions> {
     return {
       extractContent: options.extractContent ?? true,
-      includeMeta: options.includeMeta ?? false,
+      includeMeta: options.includeMeta ?? true,
       customRules: options.customRules ?? [],
       preserveElements: options.preserveElements ?? [],
       maxLength: options.maxLength ?? 1000000,
