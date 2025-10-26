@@ -54,16 +54,16 @@ const result = await convertToMarkdown("example.com", { isUrl: true });
 
 ```bash
 # From stdin
-echo '<h1>Hello</h1>' | get-md
+echo '<h1>Hello</h1>' | getmd
 
 # From file
-get-md input.html
+getmd input.html
 
 # From URL
-get-md https://example.com
+getmd https://example.com
 
 # Save to file
-get-md input.html -o output.md
+getmd input.html -o output.md
 ```
 
 ## API
@@ -106,7 +106,7 @@ Convert HTML to clean, LLM-optimized Markdown.
 ## CLI Usage
 
 ```bash
-get-md [input] [options]
+getmd [input] [options]
 
 Options:
   -o, --output <file>       Output file (default: stdout)
@@ -126,7 +126,7 @@ Options:
 ### Basic Conversion
 
 ```typescript
-import { convertToMarkdown } from "@nanocollective/get-md";
+import { convertToMarkdown } from "@nanocollective/getmd";
 
 const html = `
   <article>
@@ -162,16 +162,16 @@ const resultNoMeta = await convertToMarkdown(html, { includeMeta: false });
 
 ```bash
 # Convert HTML file (frontmatter included by default)
-get-md article.html -o article.md
+getmd article.html -o article.md
 
 # Fetch from URL
-get-md https://blog.example.com/post -o post.md
+getmd https://blog.example.com/post -o post.md
 
 # Remove images and links
-get-md article.html --no-images --no-links -o clean.md
+getmd article.html --no-images --no-links -o clean.md
 
 # Exclude frontmatter metadata
-get-md article.html --no-frontmatter -o clean.md
+getmd article.html --no-frontmatter -o clean.md
 ```
 
 ## Why get-md?
@@ -189,15 +189,6 @@ get-md article.html --no-frontmatter -o clean.md
 - **More reliable**: Deterministic output, no hallucinations
 - **Cheaper**: No API costs
 - **Privacy-friendly**: Runs locally, no data sent to third parties
-
-## Technical Details
-
-- **Parser**: Cheerio (fast, jQuery-like DOM manipulation)
-- **Cleaner**: @mozilla/readability (Firefox reader mode algorithm)
-- **Converter**: Turndown (HTML to Markdown with custom rules)
-- **Validator**: Ajv (JSON Schema validation)
-- **Language**: TypeScript with ESM support
-- **Node**: >=18
 
 ## Community
 
