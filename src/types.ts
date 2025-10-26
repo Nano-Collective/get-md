@@ -8,9 +8,6 @@ export interface MarkdownOptions {
   /** Include metadata as YAML frontmatter (default: true) */
   includeMeta?: boolean;
 
-  /** LLM-optimized formatting (default: true) */
-  llmOptimized?: boolean;
-
   /** Custom Turndown rules */
   customRules?: TurndownRule[];
 

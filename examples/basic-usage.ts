@@ -32,7 +32,6 @@ console.log(result.markdown);
   `;
 
   const result = await convertToMarkdown(html, {
-    llmOptimized: true,
     extractContent: true,
   });
 

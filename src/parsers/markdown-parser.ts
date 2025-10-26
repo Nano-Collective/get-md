@@ -90,9 +90,7 @@ export class MarkdownParser {
     let markdown = this.turndown.turndown(contentHtml);
 
     // Step 8: Apply LLM-specific formatting
-    if (opts.llmOptimized) {
-      markdown = formatForLLM(markdown);
-    }
+    markdown = formatForLLM(markdown);
 
     // Step 9: Add frontmatter if requested
     if (opts.includeMeta && Object.keys(metadata).length > 0) {
@@ -414,7 +412,6 @@ export class MarkdownParser {
     return {
       extractContent: options.extractContent ?? true,
       includeMeta: options.includeMeta ?? false,
-      llmOptimized: options.llmOptimized ?? true,
       customRules: options.customRules ?? [],
       preserveElements: options.preserveElements ?? [],
       maxLength: options.maxLength ?? 1000000,

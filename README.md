@@ -47,7 +47,6 @@ console.log(result.metadata.title);
 const result = await convertToMarkdown("https://example.com", {
   timeout: 10000,
   headers: { Authorization: "Bearer token" },
-  llmOptimized: true,
 });
 
 // Force URL mode if auto-detection fails
@@ -85,11 +84,10 @@ Convert HTML to clean, LLM-optimized Markdown.
 
 **Options:**
 
-```typescript
+````typescript
 {
   // Content options
   extractContent?: boolean;       // Use Readability extraction (default: true)
-  llmOptimized?: boolean;         // LLM-specific formatting (default: true)
   includeMeta?: boolean;          // Include YAML frontmatter (default: true)
   includeImages?: boolean;        // Include images (default: true)
   includeLinks?: boolean;         // Include links (default: true)
@@ -106,7 +104,7 @@ Convert HTML to clean, LLM-optimized Markdown.
   headers?: Record<string, string>; // Custom HTTP headers
   userAgent?: string;             // Custom user agent
 }
-```
+```In
 
 ## CLI Usage
 
@@ -125,7 +123,7 @@ Options:
   --base-url <url>          Base URL for resolving relative links
   -v, --verbose             Verbose output
   -h, --help                Display help
-```
+````
 
 ## Examples
 

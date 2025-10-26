@@ -21,7 +21,6 @@ program
   .argument("[input]", "HTML file path, URL, or stdin")
   .option("-o, --output <file>", "Output file (default: stdout)")
   .option("--no-extract", "Disable Readability content extraction")
-  .option("--no-llm-optimize", "Disable LLM-specific formatting")
   .option("--no-frontmatter", "Exclude metadata from YAML frontmatter")
   .option("--no-images", "Remove images from output")
   .option("--no-links", "Remove links from output")
@@ -82,7 +81,6 @@ async function handleMarkdownConversion(
 ): Promise<void> {
   const conversionOptions: MarkdownOptions = {
     extractContent: options.extract,
-    llmOptimized: options.llmOptimize,
     includeMeta: options.frontmatter,
     includeImages: options.images,
     includeLinks: options.links,
