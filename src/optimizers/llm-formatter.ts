@@ -84,9 +84,9 @@ function cleanInlineFormatting(markdown: string): string {
   // Remove multiple consecutive emphasis markers (***text*** → **text**)
   result = result.replace(/\*{3,}(.+?)\*{3,}/g, "**$1**");
 
-  // Clean up spaces around emphasis
-  result = result.replace(/\*\s+/g, "*");
-  result = result.replace(/\s+\*/g, "*");
+  // Clean up spaces inside emphasis markers only (e.g., "** text **" → "**text**")
+  // This pattern matches the full emphasis span with internal spaces and removes them
+  result = result.replace(/(\*{1,2})\s+([^*]+?)\s+(\*{1,2})/g, "$1$2$3");
 
   return result;
 }
