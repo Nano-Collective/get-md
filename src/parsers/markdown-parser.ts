@@ -136,7 +136,7 @@ export class MarkdownParser {
 
   private extractMainContent(
     html: string,
-    baseUrl?: string,
+    baseUrl?: string
   ): { content: string; metadata: ContentMetadata } | null {
     const doc = new JSDOM(html, { url: baseUrl });
     const reader = new Readability(doc.window.document, {
@@ -165,36 +165,61 @@ export class MarkdownParser {
   private normalizeCodeBlocks(html: string): string {
     const $ = cheerio.load(html);
 
-    // Find all divs that contain code snippets (GitHub style)
-    // These divs have the actual clean code content in a data attribute
-    $("div[data-snippet-clipboard-copy-content]").each((_, el) => {
-      const $div = $(el);
-      const pre = $div.find("pre").first();
+    // Step 1: Handle sites that store clean code in data attributes
+    // (e.g., GitHub, GitLab, and other code hosting platforms)
+    // Check common data attribute names used by various platforms
+    const codeDataAttributes = [
+      "data-snippet-clipboard-copy-content", // GitHub
+      "data-code-content", // Some documentation sites
+      "data-clipboard-text", // Generic clipboard libraries
+      "data-source", // Some CMS platforms
+    ];
 
-      if (pre.length > 0) {
-        // Get the clean code content from the data attribute
-        const cleanCode = $div.attr("data-snippet-clipboard-copy-content");
+    codeDataAttributes.forEach((attrName) => {
+      $(`div[${attrName}], figure[${attrName}]`).each((_, el) => {
+        const $container = $(el);
+        const pre = $container.find("pre").first();
 
-        if (cleanCode) {
-          // Try to detect language from div classes
-          const divClass = $div.attr("class") || "";
-          const langMatch = divClass.match(
-            /highlight-source-(\w+)|highlight-text-(\w+)|language-(\w+)/,
-          );
-          const language =
-            langMatch?.[1] || langMatch?.[2] || langMatch?.[3] || "";
+        if (pre.length > 0) {
+          // Get the clean code content from the data attribute
+          const cleanCode = $container.attr(attrName);
 
-          // Create a code element and set its text content (this will auto-escape)
-          const $code = $("<code></code>");
-          if (language) {
-            $code.addClass(`language-${language}`);
+          if (cleanCode) {
+            // Create a code element and set its text content (this will auto-escape)
+            const $code = $("<code></code>");
+            $code.text(cleanCode);
+
+            // Replace the pre content with standard <pre><code> structure
+            pre.empty().append($code);
           }
-          $code.text(cleanCode);
-
-          // Replace the pre content with standard <pre><code> structure
-          pre.empty().append($code);
         }
+      });
+    });
+
+    // Step 2: Handle bare <pre> tags without <code> children
+    // This catches code blocks from sites that don't use the <pre><code> pattern
+    $("pre").each((_, el) => {
+      const $pre = $(el);
+
+      // Skip if it already has a code child (already in correct format)
+      if ($pre.find("code").length > 0) {
+        return;
       }
+
+      // Get the text content
+      const codeContent = $pre.text();
+
+      // Skip if empty
+      if (!codeContent.trim()) {
+        return;
+      }
+
+      // Wrap content in a code element
+      const $code = $("<code></code>");
+      $code.text(codeContent);
+
+      // Replace the pre content with the code element
+      $pre.empty().append($code);
     });
 
     return $.html();
@@ -202,7 +227,7 @@ export class MarkdownParser {
 
   private filterContent(
     html: string,
-    options: Required<MarkdownOptions>,
+    options: Required<MarkdownOptions>
   ): string {
     const $ = cheerio.load(html);
 
@@ -436,7 +461,7 @@ export class MarkdownParser {
     // Clean up list formatting (remove blank lines within lists)
     markdown = markdown.replace(
       /^(-|\d+\.)\s+(.+?)(\n\n)(-|\d+\.)/gm,
-      "$1 $2\n$4",
+      "$1 $2\n$4"
     );
 
     // Ensure code blocks have spacing
@@ -486,7 +511,7 @@ export class MarkdownParser {
   }
 
   private normalizeOptions(
-    options: MarkdownOptions,
+    options: MarkdownOptions
   ): Required<MarkdownOptions> {
     return {
       extractContent: options.extractContent ?? true,

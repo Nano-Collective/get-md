@@ -165,7 +165,6 @@ function cleanAttributes($: cheerio.CheerioAPI): void {
     "colspan",
     "rowspan", // For tables
     "align", // For table alignment
-    "data-snippet-clipboard-copy-content", // For GitHub code blocks
   ]);
 
   $("*").each((_, el) => {
@@ -174,9 +173,26 @@ function cleanAttributes($: cheerio.CheerioAPI): void {
 
     if (attrs) {
       Object.keys(attrs).forEach((attr) => {
-        if (!keepAttributes.has(attr)) {
-          $el.removeAttr(attr);
+        // Keep attributes in the keepAttributes set
+        if (keepAttributes.has(attr)) {
+          return;
         }
+
+        // Also preserve data- attributes on pre/code elements and their containers
+        // These often contain clean code content (GitHub, GitLab, etc.)
+        const tagName = (el as { tagName?: string }).tagName?.toLowerCase();
+        if (
+          attr.startsWith("data-") &&
+          (tagName === "pre" ||
+            tagName === "code" ||
+            tagName === "div" ||
+            tagName === "figure")
+        ) {
+          return;
+        }
+
+        // Remove all other attributes
+        $el.removeAttr(attr);
       });
     }
   });
