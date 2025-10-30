@@ -77,6 +77,9 @@ export class MarkdownParser {
     // Step 4: Enhance structure (improve heading hierarchy, etc.)
     contentHtml = enhanceStructure(contentHtml);
 
+    // Step 4.5: Normalize code blocks (GitHub, etc.)
+    contentHtml = this.normalizeCodeBlocks(contentHtml);
+
     // Step 5: Filter content based on options
     contentHtml = this.filterContent(contentHtml, opts);
 
@@ -157,6 +160,44 @@ export class MarkdownParser {
         // wordCount and readingTime will be calculated from final markdown
       },
     };
+  }
+
+  private normalizeCodeBlocks(html: string): string {
+    const $ = cheerio.load(html);
+
+    // Find all divs that contain code snippets (GitHub style)
+    // These divs have the actual clean code content in a data attribute
+    $("div[data-snippet-clipboard-copy-content]").each((_, el) => {
+      const $div = $(el);
+      const pre = $div.find("pre").first();
+
+      if (pre.length > 0) {
+        // Get the clean code content from the data attribute
+        const cleanCode = $div.attr("data-snippet-clipboard-copy-content");
+
+        if (cleanCode) {
+          // Try to detect language from div classes
+          const divClass = $div.attr("class") || "";
+          const langMatch = divClass.match(
+            /highlight-source-(\w+)|highlight-text-(\w+)|language-(\w+)/,
+          );
+          const language =
+            langMatch?.[1] || langMatch?.[2] || langMatch?.[3] || "";
+
+          // Create a code element and set its text content (this will auto-escape)
+          const $code = $("<code></code>");
+          if (language) {
+            $code.addClass(`language-${language}`);
+          }
+          $code.text(cleanCode);
+
+          // Replace the pre content with standard <pre><code> structure
+          pre.empty().append($code);
+        }
+      }
+    });
+
+    return $.html();
   }
 
   private filterContent(

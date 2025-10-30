@@ -165,6 +165,7 @@ function cleanAttributes($: cheerio.CheerioAPI): void {
     "colspan",
     "rowspan", // For tables
     "align", // For table alignment
+    "data-snippet-clipboard-copy-content", // For GitHub code blocks
   ]);
 
   $("*").each((_, el) => {
