@@ -1,3 +1,9 @@
+# 1.0.1
+
+- Fix: Issue #1 where codeblocks were not being brought in.
+
+If there are any problems, feedback or thoughts please drop an issue or message us through Discord! Thank you for using get-md.
+
 # 1.0.0
 
 - Initial release of get-md - a fast, lightweight HTML to Markdown converter optimized for LLM consumption
