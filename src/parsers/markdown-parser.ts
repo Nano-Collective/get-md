@@ -136,7 +136,7 @@ export class MarkdownParser {
 
   private extractMainContent(
     html: string,
-    baseUrl?: string
+    baseUrl?: string,
   ): { content: string; metadata: ContentMetadata } | null {
     const doc = new JSDOM(html, { url: baseUrl });
     const reader = new Readability(doc.window.document, {
@@ -227,7 +227,7 @@ export class MarkdownParser {
 
   private filterContent(
     html: string,
-    options: Required<MarkdownOptions>
+    options: Required<MarkdownOptions>,
   ): string {
     const $ = cheerio.load(html);
 
@@ -461,7 +461,7 @@ export class MarkdownParser {
     // Clean up list formatting (remove blank lines within lists)
     markdown = markdown.replace(
       /^(-|\d+\.)\s+(.+?)(\n\n)(-|\d+\.)/gm,
-      "$1 $2\n$4"
+      "$1 $2\n$4",
     );
 
     // Ensure code blocks have spacing
@@ -511,7 +511,7 @@ export class MarkdownParser {
   }
 
   private normalizeOptions(
-    options: MarkdownOptions
+    options: MarkdownOptions,
   ): Required<MarkdownOptions> {
     return {
       extractContent: options.extractContent ?? true,
