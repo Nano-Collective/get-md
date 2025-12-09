@@ -3,14 +3,27 @@
 import { MarkdownParser } from "./parsers/markdown-parser.js";
 import { fetchUrl, isValidUrl } from "./utils/url-fetcher.js";
 import { hasContent as hasContentUtil } from "./utils/validators.js";
+import {
+  checkLLMModel,
+  downloadLLMModel,
+  removeLLMModel,
+  getLLMModelInfo,
+} from "./converters/llm-manager.js";
 import type {
   MarkdownOptions,
   MarkdownResult,
   ContentMetadata,
   TurndownRule,
   ConversionStats,
+  FetchOptions,
+  // LLM types
+  LLMEvent,
+  LLMEventCallback,
+  LLMModelStatus,
+  LLMDownloadOptions,
+  LLMModelInfo,
+  LLMModelVariant,
 } from "./types.js";
-import type { FetchOptions } from "./types.js";
 
 /**
  * Convert HTML to clean, LLM-optimized Markdown
@@ -37,18 +50,26 @@ import type { FetchOptions } from "./types.js";
  * // From URL with custom fetch options
  * const result = await convertToMarkdown('https://example.com', {
  *   timeout: 10000,
- *   headers: { 'Authorization': 'Bearer token' },
- *   llmOptimized: true
+ *   headers: { 'Authorization': 'Bearer token' }
  * });
  *
  * // Force URL mode if auto-detection fails
  * const result = await convertToMarkdown('example.com', { isUrl: true });
+ *
+ * // Use LLM for higher quality conversion
+ * const result = await convertToMarkdown('https://example.com', {
+ *   useLLM: true,
+ *   onLLMEvent: (event) => console.log(event)
+ * });
  * ```
  */
 export async function convertToMarkdown(
   html: string,
   options?: MarkdownOptions,
 ): Promise<MarkdownResult> {
+  let inputHtml = html;
+  let baseUrl = options?.baseUrl;
+
   // Check if input is a URL (or forced to be treated as one)
   if (options?.isUrl || isValidUrl(html)) {
     // Extract fetch options
@@ -61,18 +82,19 @@ export async function convertToMarkdown(
     };
 
     // Fetch HTML from URL
-    const fetchedHtml = await fetchUrl(html, fetchOptions);
-
-    // Parse with base URL set to the fetched URL
-    const parser = new MarkdownParser();
-    return parser.convert(fetchedHtml, {
-      ...options,
-      baseUrl: options?.baseUrl || html,
-    });
+    inputHtml = await fetchUrl(html, fetchOptions);
+    baseUrl = baseUrl || html;
   }
 
   const parser = new MarkdownParser();
-  return parser.convert(html, options);
+  const convertOptions = { ...options, baseUrl };
+
+  // Use async path if LLM is enabled, otherwise use sync path
+  if (options?.useLLM) {
+    return parser.convertAsync(inputHtml, convertOptions);
+  }
+
+  return parser.convert(inputHtml, convertOptions);
 }
 
 /**
@@ -85,11 +107,30 @@ export function hasContent(html: string): boolean {
   return hasContentUtil(html);
 }
 
+// Re-export LLM utility functions
+export { checkLLMModel, downloadLLMModel, removeLLMModel, getLLMModelInfo };
+
+// Re-export LLM classes for advanced usage
+export { LLMManager } from "./converters/llm-manager.js";
+export {
+  LLMConverter,
+  createLLMConverter,
+} from "./converters/llm-converter.js";
+
 // Re-export types
 export type {
+  // Core types
   MarkdownOptions,
   MarkdownResult,
   ContentMetadata,
   ConversionStats,
   TurndownRule,
+  FetchOptions,
+  // LLM types
+  LLMEvent,
+  LLMEventCallback,
+  LLMModelStatus,
+  LLMDownloadOptions,
+  LLMModelInfo,
+  LLMModelVariant,
 };

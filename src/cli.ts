@@ -4,8 +4,16 @@
 
 import { Command } from "commander";
 import fs from "fs/promises";
-import { convertToMarkdown } from "./index.js";
-import type { MarkdownOptions } from "./types.js";
+import readline from "readline";
+import { SingleBar, Presets } from "cli-progress";
+import {
+  convertToMarkdown,
+  checkLLMModel,
+  downloadLLMModel,
+  removeLLMModel,
+  getLLMModelInfo,
+} from "./index.js";
+import type { MarkdownOptions, LLMEvent } from "./types.js";
 
 interface CliOptions {
   output?: string;
@@ -17,6 +25,14 @@ interface CliOptions {
   maxLength: string;
   baseUrl?: string;
   verbose?: boolean;
+  // LLM options
+  useLlm?: boolean;
+  llmModelPath?: string;
+  llmTemperature?: string;
+  // Model management
+  downloadModel?: boolean;
+  modelInfo?: boolean;
+  removeModel?: boolean;
 }
 
 const program = new Command();
@@ -40,8 +56,32 @@ program
   .option("--max-length <n>", "Maximum output length", "1000000")
   .option("--base-url <url>", "Base URL for resolving relative links")
   .option("-v, --verbose", "Verbose output")
+  // LLM options
+  .option("--use-llm", "Use LLM for higher quality HTML to Markdown conversion")
+  .option("--llm-model-path <path>", "Custom path to LLM model file")
+  .option("--llm-temperature <n>", "LLM temperature (default: 0.1)")
+  // Model management commands
+  .option("--download-model", "Download the LLM model")
+  .option("--model-info", "Show LLM model information and status")
+  .option("--remove-model", "Remove the downloaded LLM model")
   .action(async (input: string | undefined, options: CliOptions) => {
     try {
+      // Handle model management commands first
+      if (options.modelInfo) {
+        await handleModelInfo();
+        return;
+      }
+
+      if (options.downloadModel) {
+        await handleDownloadModel();
+        return;
+      }
+
+      if (options.removeModel) {
+        await handleRemoveModel();
+        return;
+      }
+
       // Get input HTML
       const html = await getInput(input);
 
@@ -91,6 +131,28 @@ async function handleMarkdownConversion(
   html: string,
   options: CliOptions,
 ): Promise<void> {
+  // Check if LLM mode is requested
+  if (options.useLlm) {
+    // Check if model is available
+    const status = await checkLLMModel({
+      modelPath: options.llmModelPath,
+    });
+
+    if (!status.available) {
+      // Prompt user to download
+      const shouldDownload = await promptYesNo(
+        "LLM model not found. Download ReaderLM-v2 (986MB)?",
+      );
+
+      if (shouldDownload) {
+        await handleDownloadModel();
+      } else {
+        console.error("LLM mode requires the model. Falling back to Turndown.");
+        options.useLlm = false;
+      }
+    }
+  }
+
   const conversionOptions: MarkdownOptions = {
     extractContent: options.extract,
     includeMeta: options.frontmatter,
@@ -99,9 +161,26 @@ async function handleMarkdownConversion(
     includeTables: options.tables,
     maxLength: parseInt(options.maxLength, 10),
     baseUrl: options.baseUrl,
+    // LLM options
+    useLLM: options.useLlm,
+    llmModelPath: options.llmModelPath,
+    llmTemperature: options.llmTemperature
+      ? parseFloat(options.llmTemperature)
+      : undefined,
+    // Event callbacks for CLI feedback
+    onLLMEvent: options.verbose ? createLLMEventHandler() : undefined,
   };
 
+  // Show spinner for LLM conversion
+  if (options.useLlm && process.stdout.isTTY) {
+    process.stderr.write("Converting with LLM... ");
+  }
+
   const result = await convertToMarkdown(html, conversionOptions);
+
+  if (options.useLlm && process.stdout.isTTY) {
+    process.stderr.write("done!\n");
+  }
 
   // Write output
   if (options.output) {
@@ -117,6 +196,168 @@ async function handleMarkdownConversion(
   } else {
     console.log(result.markdown);
   }
+}
+
+// ============================================================================
+// Model Management Commands
+// ============================================================================
+
+async function handleModelInfo(): Promise<void> {
+  const info = getLLMModelInfo();
+  const status = await checkLLMModel();
+
+  console.log("\nLLM Model Information");
+  console.log("=====================");
+  console.log(`Recommended model: ${info.recommendedModel}`);
+  console.log(`Default path: ${info.defaultPath}`);
+  console.log(`Status: ${status.available ? "Installed" : "Not installed"}`);
+
+  if (status.available) {
+    console.log(`Size: ${status.sizeFormatted}`);
+  }
+
+  console.log("\nAvailable variants:");
+  for (const variant of info.availableModels) {
+    const marker =
+      variant.name === info.recommendedModel ? " (recommended)" : "";
+    console.log(`  - ${variant.name}${marker}`);
+    console.log(`    Size: ${Math.round(variant.size / (1024 * 1024))}MB`);
+    console.log(`    RAM required: ${variant.ramRequired}`);
+  }
+}
+
+async function handleDownloadModel(): Promise<void> {
+  const status = await checkLLMModel();
+
+  if (status.available) {
+    console.log(`Model already installed at: ${status.path}`);
+    console.log(`Size: ${status.sizeFormatted}`);
+    return;
+  }
+
+  console.log("Downloading ReaderLM-v2 model...\n");
+
+  // Create progress bar
+  const progressBar = new SingleBar(
+    {
+      format: "Progress |{bar}| {percentage}% | {downloaded}/{total}",
+      hideCursor: true,
+    },
+    Presets.shades_classic,
+  );
+
+  let started = false;
+
+  try {
+    const path = await downloadLLMModel({
+      onProgress: (downloaded, total, percentage) => {
+        if (!started) {
+          progressBar.start(100, 0, {
+            downloaded: formatBytes(downloaded),
+            total: formatBytes(total),
+          });
+          started = true;
+        }
+        progressBar.update(Math.round(percentage), {
+          downloaded: formatBytes(downloaded),
+          total: formatBytes(total),
+        });
+      },
+    });
+
+    progressBar.stop();
+    console.log(`\n✓ Model downloaded successfully to: ${path}`);
+  } catch (error) {
+    progressBar.stop();
+    throw error;
+  }
+}
+
+async function handleRemoveModel(): Promise<void> {
+  const status = await checkLLMModel();
+
+  if (!status.available) {
+    console.log("No model installed.");
+    return;
+  }
+
+  const confirm = await promptYesNo(
+    `Remove model at ${status.path}? (${status.sizeFormatted})`,
+  );
+
+  if (confirm) {
+    await removeLLMModel();
+    console.log("✓ Model removed successfully.");
+  } else {
+    console.log("Cancelled.");
+  }
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / (1024 * 1024)).toFixed(0)}MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)}GB`;
+}
+
+async function promptYesNo(question: string): Promise<boolean> {
+  // Non-interactive mode - default to no
+  if (!process.stdin.isTTY) {
+    return false;
+  }
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stderr,
+  });
+
+  return new Promise((resolve) => {
+    rl.question(`${question} (y/N) `, (answer) => {
+      rl.close();
+      resolve(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
+    });
+  });
+}
+
+function createLLMEventHandler(): (event: LLMEvent) => void {
+  return (event: LLMEvent) => {
+    switch (event.type) {
+      case "model-check":
+        if (event.status === "checking") {
+          process.stderr.write("Checking model... ");
+        } else if (event.status === "found") {
+          process.stderr.write("found\n");
+        } else {
+          process.stderr.write("not found\n");
+        }
+        break;
+      case "model-loading":
+        process.stderr.write(`Loading ${event.modelName}... `);
+        break;
+      case "model-loaded":
+        process.stderr.write(`done (${event.loadTime}ms)\n`);
+        break;
+      case "conversion-start":
+        process.stderr.write(
+          `Converting ${formatBytes(event.inputSize)} of HTML... `,
+        );
+        break;
+      case "conversion-complete":
+        process.stderr.write(`done (${event.duration}ms)\n`);
+        break;
+      case "fallback-start":
+        process.stderr.write(`\nFalling back to Turndown: ${event.reason}\n`);
+        break;
+      case "conversion-error":
+        process.stderr.write(`\nError: ${event.error.message}\n`);
+        break;
+    }
+  };
 }
 
 program.parse();

@@ -1,8 +1,27 @@
 // src/index.spec.ts
 
 import test from "ava";
-import { convertToMarkdown, hasContent } from "./index.js";
-import type { MarkdownOptions, MarkdownResult } from "./index.js";
+import {
+  convertToMarkdown,
+  hasContent,
+  checkLLMModel,
+  downloadLLMModel,
+  removeLLMModel,
+  getLLMModelInfo,
+  LLMManager,
+  LLMConverter,
+  createLLMConverter,
+} from "./index.js";
+import type {
+  MarkdownOptions,
+  MarkdownResult,
+  LLMEvent,
+  LLMEventCallback,
+  LLMModelStatus,
+  LLMDownloadOptions,
+  LLMModelInfo,
+  LLMModelVariant,
+} from "./index.js";
 
 // Add cleanup hook to force exit after tests complete
 // This is necessary because network fetch operations can keep the event loop alive
@@ -650,4 +669,215 @@ test("hasContent: handles very long HTML efficiently", (t) => {
 
   // Should complete quickly (under 1 second)
   t.true(endTime - startTime < 1000);
+});
+
+// ============================================================================
+// LLM Function Export Tests
+// ============================================================================
+
+test("exports: checkLLMModel is exported and callable", async (t) => {
+  t.is(typeof checkLLMModel, "function");
+
+  const status = await checkLLMModel();
+  t.is(typeof status.available, "boolean");
+});
+
+test("exports: downloadLLMModel is exported and callable", (t) => {
+  t.is(typeof downloadLLMModel, "function");
+});
+
+test("exports: removeLLMModel is exported and callable", (t) => {
+  t.is(typeof removeLLMModel, "function");
+});
+
+test("exports: getLLMModelInfo is exported and callable", (t) => {
+  t.is(typeof getLLMModelInfo, "function");
+
+  const info = getLLMModelInfo();
+  t.is(typeof info.defaultPath, "string");
+  t.is(typeof info.recommendedModel, "string");
+  t.true(Array.isArray(info.availableModels));
+});
+
+test("exports: LLMManager class is exported", (t) => {
+  t.is(typeof LLMManager, "function");
+
+  const manager = new LLMManager();
+  t.truthy(manager);
+  t.is(typeof manager.checkModel, "function");
+});
+
+test("exports: LLMConverter class is exported", (t) => {
+  t.is(typeof LLMConverter, "function");
+
+  const converter = new LLMConverter({ modelPath: "/test/path" });
+  t.truthy(converter);
+  t.is(typeof converter.loadModel, "function");
+});
+
+test("exports: createLLMConverter factory is exported", (t) => {
+  t.is(typeof createLLMConverter, "function");
+
+  const converter = createLLMConverter({ modelPath: "/test/path" });
+  t.truthy(converter);
+  t.true(converter instanceof LLMConverter);
+});
+
+// ============================================================================
+// LLM Type Export Tests
+// ============================================================================
+
+test("types: LLMEvent type is properly structured", (t) => {
+  const event: LLMEvent = { type: "model-check", status: "checking" };
+  t.is(event.type, "model-check");
+});
+
+test("types: LLMEventCallback type works correctly", (t) => {
+  const callback: LLMEventCallback = (event) => {
+    t.truthy(event.type);
+  };
+
+  callback({ type: "model-check", status: "checking" });
+});
+
+test("types: LLMModelStatus type is properly structured", (t) => {
+  const status: LLMModelStatus = {
+    available: true,
+    path: "/test/path",
+    size: 1024,
+    sizeFormatted: "1KB",
+    version: "2.0",
+  };
+
+  t.is(status.available, true);
+  t.is(status.path, "/test/path");
+});
+
+test("types: LLMDownloadOptions type is properly structured", (t) => {
+  const options: LLMDownloadOptions = {
+    modelPath: "/test/path",
+    onProgress: (downloaded, total, percentage) => {
+      t.is(typeof downloaded, "number");
+      t.is(typeof total, "number");
+      t.is(typeof percentage, "number");
+    },
+    onComplete: (path) => {
+      t.is(typeof path, "string");
+    },
+    onError: (error) => {
+      t.truthy(error);
+    },
+  };
+
+  t.is(options.modelPath, "/test/path");
+});
+
+test("types: LLMModelInfo type is properly structured", (t) => {
+  const info: LLMModelInfo = {
+    defaultPath: "/default/path",
+    recommendedModel: "test-model",
+    availableModels: [],
+  };
+
+  t.is(info.defaultPath, "/default/path");
+  t.is(info.recommendedModel, "test-model");
+});
+
+test("types: LLMModelVariant type is properly structured", (t) => {
+  const variant: LLMModelVariant = {
+    name: "test-variant",
+    size: 1024,
+    quantization: "Q4_K_M",
+    ramRequired: "2-4GB",
+  };
+
+  t.is(variant.name, "test-variant");
+  t.is(variant.size, 1024);
+  t.is(variant.quantization, "Q4_K_M");
+  t.is(variant.ramRequired, "2-4GB");
+});
+
+// ============================================================================
+// LLM Conversion Option Tests
+// ============================================================================
+
+test("convertToMarkdown: accepts useLLM option", async (t) => {
+  const options: MarkdownOptions = {
+    useLLM: false,
+  };
+
+  // Should work with useLLM: false (uses Turndown)
+  const result = await convertToMarkdown(SIMPLE_HTML, options);
+  t.truthy(result);
+  t.is(typeof result.markdown, "string");
+});
+
+test("convertToMarkdown: accepts llmFallback option", async (t) => {
+  const options: MarkdownOptions = {
+    useLLM: false,
+    llmFallback: true,
+  };
+
+  const result = await convertToMarkdown(SIMPLE_HTML, options);
+  t.truthy(result);
+});
+
+test("convertToMarkdown: accepts llmTemperature option", async (t) => {
+  const options: MarkdownOptions = {
+    useLLM: false,
+    llmTemperature: 0.5,
+  };
+
+  const result = await convertToMarkdown(SIMPLE_HTML, options);
+  t.truthy(result);
+});
+
+test("convertToMarkdown: accepts llmMaxTokens option", async (t) => {
+  const options: MarkdownOptions = {
+    useLLM: false,
+    llmMaxTokens: 10000,
+  };
+
+  const result = await convertToMarkdown(SIMPLE_HTML, options);
+  t.truthy(result);
+});
+
+test("convertToMarkdown: accepts onLLMEvent callback", async (t) => {
+  const events: LLMEvent[] = [];
+  const options: MarkdownOptions = {
+    useLLM: false,
+    onLLMEvent: (event) => {
+      events.push(event);
+    },
+  };
+
+  const result = await convertToMarkdown(SIMPLE_HTML, options);
+  t.truthy(result);
+  // No events should fire when useLLM is false
+  t.is(events.length, 0);
+});
+
+test("convertToMarkdown: accepts simplified callbacks", async (t) => {
+  const options: MarkdownOptions = {
+    useLLM: false,
+    onDownloadProgress: () => {},
+    onModelStatus: () => {},
+    onConversionProgress: () => {},
+  };
+
+  const result = await convertToMarkdown(SIMPLE_HTML, options);
+  t.truthy(result);
+});
+
+test("convertToMarkdown: useLLM without model falls back to Turndown", async (t) => {
+  // When model is not installed and llmFallback is true (default),
+  // should fall back to Turndown conversion
+  const result = await convertToMarkdown(SIMPLE_HTML, {
+    useLLM: true,
+    llmFallback: true,
+  });
+
+  t.truthy(result);
+  t.is(typeof result.markdown, "string");
+  t.true(result.markdown.length > 0);
 });

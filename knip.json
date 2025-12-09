@@ -1,5 +1,10 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "ignoreDependencies": [],
-  "ignore": ["examples/**", "package.json"]
+  "ignore": ["examples/**", "package.json"],
+  "ignoreExportsUsedInFile": {
+    "interface": true,
+    "type": true
+  },
+  "project": ["src/**/*.ts", "!src/**/*.spec.ts"]
 }
