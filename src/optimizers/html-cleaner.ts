@@ -1,6 +1,6 @@
 // src/optimizers/html-cleaner.ts
 
-import * as cheerio from "cheerio";
+import * as cheerio from "cheerio/slim";
 
 interface CleanOptions {
   /** Remove ads, navigation, social media, etc. */

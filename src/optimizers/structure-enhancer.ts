@@ -1,6 +1,6 @@
 // src/optimizers/structure-enhancer.ts
 
-import * as cheerio from "cheerio";
+import * as cheerio from "cheerio/slim";
 
 /**
  * Enhance HTML structure for better markdown conversion

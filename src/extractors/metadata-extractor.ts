@@ -1,6 +1,6 @@
 // src/extractors/metadata-extractor.ts
 
-import * as cheerio from "cheerio";
+import * as cheerio from "cheerio/slim";
 import type { ContentMetadata } from "../types.js";
 
 /**

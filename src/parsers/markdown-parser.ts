@@ -2,9 +2,7 @@
 
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
-import { Readability } from "@mozilla/readability";
-import { JSDOM } from "jsdom";
-import * as cheerio from "cheerio";
+import * as cheerio from "cheerio/slim";
 import { cleanHTML } from "../optimizers/html-cleaner.js";
 import { formatForLLM } from "../optimizers/llm-formatter.js";
 import { enhanceStructure } from "../optimizers/structure-enhancer.js";
@@ -41,7 +39,10 @@ export class MarkdownParser {
     this.setupLLMRules();
   }
 
-  convert(html: string, options: MarkdownOptions = {}): MarkdownResult {
+  async convert(
+    html: string,
+    options: MarkdownOptions = {},
+  ): Promise<MarkdownResult> {
     const startTime = Date.now();
     const opts = this.normalizeOptions(options);
 
@@ -52,15 +53,19 @@ export class MarkdownParser {
 
     if (opts.extractContent) {
       try {
-        const extracted = this.extractMainContent(html, opts.baseUrl);
+        const extracted = await this.extractMainContent(html, opts.baseUrl);
         if (extracted) {
           contentHtml = extracted.content;
           metadata = extracted.metadata;
           readabilitySuccess = true;
         }
-      } catch {
-        // Fallback to raw HTML if Readability fails
-        console.warn("Readability extraction failed, using raw HTML");
+      } catch (error) {
+        // Fallback to raw HTML if Readability fails or is unavailable (React Native)
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        console.warn(
+          `Readability extraction failed: ${errorMessage}. Using raw HTML.`,
+        );
       }
     }
 
@@ -134,32 +139,64 @@ export class MarkdownParser {
     };
   }
 
-  private extractMainContent(
+  private async extractMainContent(
     html: string,
     baseUrl?: string,
-  ): { content: string; metadata: ContentMetadata } | null {
-    const doc = new JSDOM(html, { url: baseUrl });
-    const reader = new Readability(doc.window.document, {
-      // Increase content threshold to avoid extracting navigation/sidebars
-      charThreshold: 500,
-    });
+  ): Promise<{ content: string; metadata: ContentMetadata } | null> {
+    try {
+      // Use happy-dom-without-node for DOM implementation
+      // Works in Node.js, React Native, and browser environments
+      const { Window } = await import("happy-dom-without-node");
+      const { Readability } = await import("@mozilla/readability");
 
-    const article = reader.parse();
+      // Save original process (happy-dom overrides it)
+      const originalProcess =
+        typeof globalThis !== "undefined"
+          ? (globalThis as typeof globalThis & { process?: typeof process })
+              .process
+          : undefined;
 
-    if (!article) {
-      return null;
+      const window = new Window({
+        url: baseUrl || "https://example.com",
+      });
+      const document = window.document;
+      document.body.innerHTML = html;
+
+      // Restore original process
+      if (originalProcess && typeof globalThis !== "undefined") {
+        (
+          globalThis as typeof globalThis & { process?: typeof process }
+        ).process = originalProcess;
+      }
+
+      // Cast to any to bypass TypeScript type checking
+      // happy-dom-without-node implements enough of the DOM API for Readability
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
+      const reader = new Readability(document as any, {
+        charThreshold: 500,
+      });
+
+      const article = reader.parse();
+
+      if (!article) {
+        return null;
+      }
+
+      return {
+        content: article.content || "",
+        metadata: {
+          title: article.title || undefined,
+          author: article.byline || undefined,
+          excerpt: article.excerpt || undefined,
+          siteName: article.siteName || undefined,
+        },
+      };
+    } catch {
+      // Content extraction not available
+      throw new Error(
+        "Content extraction failed. Set extractContent: false to skip content extraction.",
+      );
     }
-
-    return {
-      content: article.content || "",
-      metadata: {
-        title: article.title || undefined,
-        author: article.byline || undefined,
-        excerpt: article.excerpt || undefined,
-        siteName: article.siteName || undefined,
-        // wordCount and readingTime will be calculated from final markdown
-      },
-    };
   }
 
   private normalizeCodeBlocks(html: string): string {

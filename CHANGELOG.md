@@ -1,3 +1,11 @@
+# 1.0.3
+
+- Added React Native support
+    - Replaced `JSDOM` with `happy-dom-without-node` for universal DOM implementation.
+    - Switched to cheerio/slim for better React Native compatibility.
+
+If there are any problems, feedback or thoughts please drop an issue or message us through Discord! Thank you for using get-md.
+
 # 1.0.2
 
 - Removed warning notice from README.

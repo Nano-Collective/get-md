@@ -65,14 +65,14 @@ export async function convertToMarkdown(
 
     // Parse with base URL set to the fetched URL
     const parser = new MarkdownParser();
-    return parser.convert(fetchedHtml, {
+    return await parser.convert(fetchedHtml, {
       ...options,
       baseUrl: options?.baseUrl || html,
     });
   }
 
   const parser = new MarkdownParser();
-  return parser.convert(html, options);
+  return await parser.convert(html, options);
 }
 
 /**

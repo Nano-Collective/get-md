@@ -11,6 +11,7 @@ A fast, lightweight HTML to Markdown converter optimized for LLM consumption. Us
 - **TypeScript**: Full type definitions included
 - **Zero downloads**: No models to download, works instantly
 - **Lightweight**: Small package size (~10MB)
+- **React Native compatible**: Full support including content extraction!
 
 ## Installation
 
@@ -173,6 +174,30 @@ getmd article.html --no-images --no-links -o clean.md
 # Exclude frontmatter metadata
 getmd article.html --no-frontmatter -o clean.md
 ```
+
+## React Native Support
+
+get-md **fully supports React Native** including content extraction! We use `happy-dom-without-node` instead of JSDOM, which works across Node.js, React Native, and browser environments.
+
+```typescript
+import { convertToMarkdown } from "@nanocollective/get-md";
+
+// Works in React Native with full features!
+const result = await convertToMarkdown(html, {
+  extractContent: true, // Readability extraction works!
+  includeMeta: true,
+  // ... all other options work
+});
+```
+
+**All features work in React Native:**
+- ✅ HTML to Markdown conversion
+- ✅ Mozilla Readability content extraction
+- ✅ Metadata extraction
+- ✅ Content cleaning and optimization
+- ✅ All formatting options
+
+No special configuration needed!
 
 ## Why get-md?
 

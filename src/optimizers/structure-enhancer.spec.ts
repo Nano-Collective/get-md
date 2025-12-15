@@ -258,7 +258,7 @@ test("handles headings with nested elements", (t) => {
 
 test("handles empty input", (t) => {
   const result = enhanceStructure("");
-  t.truthy(result);
+  t.is(result, "");
 });
 
 test("handles input with no transformations needed", (t) => {
