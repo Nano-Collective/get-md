@@ -2,8 +2,8 @@
 
 // src/cli.ts
 
+import fs from "node:fs/promises";
 import { Command } from "commander";
-import fs from "fs/promises";
 import { convertToMarkdown } from "./index.js";
 import type { MarkdownOptions } from "./types.js";
 
@@ -58,7 +58,7 @@ program
 
 async function getInput(input?: string): Promise<string> {
   // Read from URL
-  if (input && input.startsWith("http")) {
+  if (input?.startsWith("http")) {
     const response = await fetch(input, {
       signal: AbortSignal.timeout(15000),
     });

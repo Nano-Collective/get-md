@@ -1,16 +1,16 @@
 // src/parsers/markdown-parser.ts
 
+import * as cheerio from "cheerio/slim";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
-import * as cheerio from "cheerio/slim";
+import { extractMetadata } from "../extractors/metadata-extractor.js";
 import { cleanHTML } from "../optimizers/html-cleaner.js";
 import { formatForLLM } from "../optimizers/llm-formatter.js";
 import { enhanceStructure } from "../optimizers/structure-enhancer.js";
-import { extractMetadata } from "../extractors/metadata-extractor.js";
 import type {
+  ContentMetadata,
   MarkdownOptions,
   MarkdownResult,
-  ContentMetadata,
   TurndownNode,
   TurndownRule,
 } from "../types.js";
@@ -114,8 +114,7 @@ export class MarkdownParser {
 
     // Step 12: Validate length
     if (opts.maxLength && markdown.length > opts.maxLength) {
-      markdown =
-        markdown.substring(0, opts.maxLength) + "\n\n[Content truncated]";
+      markdown = `${markdown.substring(0, opts.maxLength)}\n\n[Content truncated]`;
     }
 
     const processingTime = Date.now() - startTime;
@@ -169,10 +168,9 @@ export class MarkdownParser {
         ).process = originalProcess;
       }
 
-      // Cast to any to bypass TypeScript type checking
+      // Cast to bypass TypeScript type checking
       // happy-dom-without-node implements enough of the DOM API for Readability
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument
-      const reader = new Readability(document as any, {
+      const reader = new Readability(document as unknown as Document, {
         charThreshold: 500,
       });
 
@@ -341,9 +339,7 @@ export class MarkdownParser {
       replacement: (_content, node: TurndownNode) => {
         const text = node.textContent || "";
         const lines = text.trim().split("\n");
-        return (
-          "\n" + lines.map((line: string) => `> ${line}`).join("\n") + "\n"
-        );
+        return `\n${lines.map((line: string) => `> ${line}`).join("\n")}\n`;
       },
     });
 
@@ -406,7 +402,7 @@ export class MarkdownParser {
     });
 
     // Build markdown table
-    let markdown = "\n| " + headers.join(" | ") + " |\n";
+    let markdown = `\n| ${headers.join(" | ")} |\n`;
 
     // Add alignment row
     const alignRow = alignments.map((align) => {
@@ -414,14 +410,14 @@ export class MarkdownParser {
       if (align === "right") return "---:";
       return "---";
     });
-    markdown += "| " + alignRow.join(" | ") + " |\n";
+    markdown += `| ${alignRow.join(" | ")} |\n`;
 
     // Add data rows
     rows.forEach((row) => {
-      markdown += "| " + row.join(" | ") + " |\n";
+      markdown += `| ${row.join(" | ")} |\n`;
     });
 
-    return markdown + "\n";
+    return `${markdown}\n`;
   }
 
   private applyCustomRules(rules: TurndownRule[]): void {
@@ -450,7 +446,7 @@ export class MarkdownParser {
 
     yaml.push("---");
 
-    return yaml.join("\n") + "\n\n" + markdown;
+    return `${yaml.join("\n")}\n\n${markdown}`;
   }
 
   private calculateMarkdownStats(markdown: string): {
@@ -544,7 +540,7 @@ export class MarkdownParser {
     // Remove trailing whitespace from lines
     markdown = markdown.replace(/[^\S\n]+$/gm, "");
 
-    return markdown.trim() + "\n";
+    return `${markdown.trim()}\n`;
   }
 
   private normalizeOptions(

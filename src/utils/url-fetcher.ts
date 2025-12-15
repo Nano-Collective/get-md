@@ -1,7 +1,7 @@
 // src/utils/url-fetcher.ts
 
+import { DEFAULT_FETCH_TIMEOUT, DEFAULT_USER_AGENT } from "../config.js";
 import type { FetchOptions } from "../types.js";
-import { DEFAULT_USER_AGENT, DEFAULT_FETCH_TIMEOUT } from "../config.js";
 
 /**
  * Fetch HTML from a URL with timeout and redirect handling

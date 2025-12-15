@@ -1,16 +1,16 @@
 // src/index.ts
 
 import { MarkdownParser } from "./parsers/markdown-parser.js";
-import { fetchUrl, isValidUrl } from "./utils/url-fetcher.js";
-import { hasContent as hasContentUtil } from "./utils/validators.js";
 import type {
+  ContentMetadata,
+  ConversionStats,
+  FetchOptions,
   MarkdownOptions,
   MarkdownResult,
-  ContentMetadata,
   TurndownRule,
-  ConversionStats,
 } from "./types.js";
-import type { FetchOptions } from "./types.js";
+import { fetchUrl, isValidUrl } from "./utils/url-fetcher.js";
+import { hasContent as hasContentUtil } from "./utils/validators.js";
 
 /**
  * Convert HTML to clean, LLM-optimized Markdown
