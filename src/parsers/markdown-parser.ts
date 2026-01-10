@@ -3,19 +3,19 @@
 import * as cheerio from "cheerio/slim";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
+import { LLMConverter } from "../converters/llm-converter.js";
+import { checkLLMModel } from "../converters/llm-manager.js";
 import { extractMetadata } from "../extractors/metadata-extractor.js";
 import { cleanHTML } from "../optimizers/html-cleaner.js";
 import { formatForLLM } from "../optimizers/llm-formatter.js";
 import { enhanceStructure } from "../optimizers/structure-enhancer.js";
-import { checkLLMModel } from "../converters/llm-manager.js";
-import { LLMConverter } from "../converters/llm-converter.js";
 import type {
   ContentMetadata,
+  LLMEventCallback,
   MarkdownOptions,
   MarkdownResult,
   TurndownNode,
   TurndownRule,
-  LLMEventCallback,
 } from "../types.js";
 
 export class MarkdownParser {
@@ -56,10 +56,8 @@ export class MarkdownParser {
     const opts = this.normalizeOptions(options);
 
     // Prepare preprocessed HTML and metadata
-    const { contentHtml, metadata, readabilitySuccess } = this.preprocessHtml(
-      html,
-      opts,
-    );
+    const { contentHtml, metadata, readabilitySuccess } =
+      await this.preprocessHtml(html, opts);
 
     // Create event emitter that unifies both callback styles
     const emitEvent = this.createEventEmitter(opts);
@@ -113,11 +111,17 @@ export class MarkdownParser {
       );
     }
 
-    // Prepare preprocessed HTML and metadata
-    const { contentHtml, metadata, readabilitySuccess } = this.preprocessHtml(
-      html,
-      opts,
-    );
+    // Disable extractContent for sync version since it requires async
+    if (opts.extractContent) {
+      console.warn(
+        "Content extraction (Readability) is not available in sync convert(). Use convertAsync() instead. Falling back to raw HTML.",
+      );
+      opts.extractContent = false;
+    }
+
+    // Prepare preprocessed HTML and metadata (sync version)
+    const { contentHtml, metadata, readabilitySuccess } =
+      this.preprocessHtmlSync(html, opts);
 
     // Convert with Turndown (sync path)
     const markdown = this.convertWithTurndown(contentHtml, opts);
@@ -137,14 +141,14 @@ export class MarkdownParser {
   /**
    * Preprocess HTML: extract content, clean, enhance structure, filter
    */
-  private preprocessHtml(
+  private async preprocessHtml(
     html: string,
     opts: Required<MarkdownOptions>,
-  ): {
+  ): Promise<{
     contentHtml: string;
     metadata: ContentMetadata;
     readabilitySuccess: boolean;
-  } {
+  }> {
     // Step 1: Extract main content using Readability
     let contentHtml = html;
     let metadata: ContentMetadata = {};
@@ -167,6 +171,44 @@ export class MarkdownParser {
         );
       }
     }
+
+    // Step 2: Additional metadata extraction
+    const additionalMeta = extractMetadata(contentHtml, opts.baseUrl);
+    metadata = { ...additionalMeta, ...metadata };
+
+    // Step 3: Clean HTML (remove scripts, styles, ads, etc.)
+    contentHtml = cleanHTML(contentHtml, {
+      aggressive: opts.aggressiveCleanup,
+      baseUrl: opts.baseUrl,
+    });
+
+    // Step 4: Enhance structure (improve heading hierarchy, etc.)
+    contentHtml = enhanceStructure(contentHtml);
+
+    // Step 4.5: Normalize code blocks (GitHub, etc.)
+    contentHtml = this.normalizeCodeBlocks(contentHtml);
+
+    // Step 5: Filter content based on options
+    contentHtml = this.filterContent(contentHtml, opts);
+
+    return { contentHtml, metadata, readabilitySuccess };
+  }
+
+  /**
+   * Preprocess HTML: clean, enhance structure, filter (sync version - no content extraction)
+   */
+  private preprocessHtmlSync(
+    html: string,
+    opts: Required<MarkdownOptions>,
+  ): {
+    contentHtml: string;
+    metadata: ContentMetadata;
+    readabilitySuccess: boolean;
+  } {
+    // Skip content extraction in sync version (requires async)
+    let contentHtml = html;
+    let metadata: ContentMetadata = {};
+    const readabilitySuccess = false;
 
     // Step 2: Additional metadata extraction
     const additionalMeta = extractMetadata(contentHtml, opts.baseUrl);
@@ -242,7 +284,7 @@ export class MarkdownParser {
 
     // Create and load the converter
     const converter = new LLMConverter({
-      modelPath: modelStatus.path!,
+      modelPath: modelStatus.path || "",
       onEvent: emitEvent,
       temperature: opts.llmTemperature,
       maxTokens: opts.llmMaxTokens,

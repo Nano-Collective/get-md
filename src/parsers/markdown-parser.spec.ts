@@ -476,7 +476,7 @@ test("MarkdownParser: calculates word count and reading time", async (t) => {
 // Content extraction tests
 test("MarkdownParser: extracts main content with Readability by default", async (t) => {
   const parser = new MarkdownParser();
-  const result = await parser.convert(HTML_WITH_NOISE);
+  const result = await parser.convertAsync(HTML_WITH_NOISE);
 
   t.true(result.markdown.includes("Main Content"));
   t.is(result.stats.readabilitySuccess, true);
@@ -525,7 +525,7 @@ test("MarkdownParser: removes excessive blank lines", async (t) => {
     <br><br><br>
     <p>Second</p>
   </body></html>`;
-  const result = await parser.convert(htmlWithBlanks);
+  const result = await parser.convertAsync(htmlWithBlanks);
 
   // Should not have more than 2 consecutive newlines
   t.false(result.markdown.includes("\n\n\n\n"));

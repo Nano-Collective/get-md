@@ -1,29 +1,29 @@
 // src/index.ts
 
-import { MarkdownParser } from "./parsers/markdown-parser.js";
-import { fetchUrl, isValidUrl } from "./utils/url-fetcher.js";
-import { hasContent as hasContentUtil } from "./utils/validators.js";
 import {
   checkLLMModel,
   downloadLLMModel,
-  removeLLMModel,
   getLLMModelInfo,
+  removeLLMModel,
 } from "./converters/llm-manager.js";
+import { MarkdownParser } from "./parsers/markdown-parser.js";
 import type {
   ContentMetadata,
   ConversionStats,
   FetchOptions,
-  MarkdownOptions,
-  MarkdownResult,
-  TurndownRule,
+  LLMDownloadOptions,
   // LLM types
   LLMEvent,
   LLMEventCallback,
-  LLMModelStatus,
-  LLMDownloadOptions,
   LLMModelInfo,
+  LLMModelStatus,
   LLMModelVariant,
+  MarkdownOptions,
+  MarkdownResult,
+  TurndownRule,
 } from "./types.js";
+import { fetchUrl, isValidUrl } from "./utils/url-fetcher.js";
+import { hasContent as hasContentUtil } from "./utils/validators.js";
 
 /**
  * Convert HTML to clean, LLM-optimized Markdown
@@ -89,12 +89,9 @@ export async function convertToMarkdown(
   const parser = new MarkdownParser();
   const convertOptions = { ...options, baseUrl };
 
-  // Use async path if LLM is enabled, otherwise use sync path
-  if (options?.useLLM) {
-    return parser.convertAsync(inputHtml, convertOptions);
-  }
-
-  return parser.convert(inputHtml, convertOptions);
+  // Use async path to enable Readability content extraction
+  // sync path doesn't support content extraction
+  return parser.convertAsync(inputHtml, convertOptions);
 }
 
 /**
@@ -110,12 +107,12 @@ export function hasContent(html: string): boolean {
 // Re-export LLM utility functions
 export { checkLLMModel, downloadLLMModel, removeLLMModel, getLLMModelInfo };
 
+export {
+  createLLMConverter,
+  LLMConverter,
+} from "./converters/llm-converter.js";
 // Re-export LLM classes for advanced usage
 export { LLMManager } from "./converters/llm-manager.js";
-export {
-  LLMConverter,
-  createLLMConverter,
-} from "./converters/llm-converter.js";
 
 // Re-export types
 export type {

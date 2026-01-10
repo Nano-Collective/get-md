@@ -3,17 +3,17 @@
 // src/cli.ts
 
 import fs from "node:fs/promises";
+import readline from "node:readline";
+import { Presets, SingleBar } from "cli-progress";
 import { Command } from "commander";
-import readline from "readline";
-import { SingleBar, Presets } from "cli-progress";
 import {
-  convertToMarkdown,
   checkLLMModel,
+  convertToMarkdown,
   downloadLLMModel,
-  removeLLMModel,
   getLLMModelInfo,
+  removeLLMModel,
 } from "./index.js";
-import type { MarkdownOptions, LLMEvent } from "./types.js";
+import type { LLMEvent, MarkdownOptions } from "./types.js";
 
 interface CliOptions {
   output?: string;

@@ -2,10 +2,10 @@
 
 import {
   getLlama,
-  LlamaModel,
-  LlamaContext,
-  LlamaCompletion,
   type Llama,
+  LlamaCompletion,
+  type LlamaContext,
+  type LlamaModel,
 } from "node-llama-cpp";
 import type { LLMEventCallback } from "../types.js";
 

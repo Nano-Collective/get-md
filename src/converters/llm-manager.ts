@@ -1,14 +1,14 @@
 // src/converters/llm-manager.ts
 
-import { createModelDownloader } from "node-llama-cpp";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import * as os from "node:os";
+import * as path from "node:path";
+import { createModelDownloader } from "node-llama-cpp";
 import type {
-  LLMEventCallback,
-  LLMModelStatus,
   LLMDownloadOptions,
+  LLMEventCallback,
   LLMModelInfo,
+  LLMModelStatus,
   LLMModelVariant,
 } from "../types.js";
 
