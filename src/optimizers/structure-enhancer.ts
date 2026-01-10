@@ -1,6 +1,6 @@
 // src/optimizers/structure-enhancer.ts
 
-import * as cheerio from "cheerio";
+import * as cheerio from "cheerio/slim";
 
 /**
  * Enhance HTML structure for better markdown conversion
@@ -25,13 +25,13 @@ export function enhanceStructure(html: string): string {
 
 function normalizeHeadings($: cheerio.CheerioAPI): void {
   // Ensure headings have proper hierarchy
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // biome-ignore lint/suspicious/noExplicitAny: Cheerio type compatibility
   const headings: { level: number; $el: cheerio.Cheerio<any> }[] = [];
 
   $("h1, h2, h3, h4, h5, h6").each((_, el) => {
     const $el = $(el);
     const tagName = el.tagName?.toLowerCase() || "";
-    const level = parseInt(tagName.substring(1));
+    const level = parseInt(tagName.substring(1), 10);
     headings.push({ level, $el });
   });
 

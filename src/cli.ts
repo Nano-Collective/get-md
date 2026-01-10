@@ -2,8 +2,8 @@
 
 // src/cli.ts
 
+import fs from "node:fs/promises";
 import { Command } from "commander";
-import fs from "fs/promises";
 import readline from "readline";
 import { SingleBar, Presets } from "cli-progress";
 import {
@@ -98,7 +98,7 @@ program
 
 async function getInput(input?: string): Promise<string> {
   // Read from URL
-  if (input && input.startsWith("http")) {
+  if (input?.startsWith("http")) {
     const response = await fetch(input, {
       signal: AbortSignal.timeout(15000),
     });

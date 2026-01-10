@@ -43,7 +43,7 @@ function normalizeHeadingLevels(markdown: string): string {
       const normalizedLevel = Math.min(level, currentLevel + 2);
       currentLevel = normalizedLevel;
 
-      result.push("#".repeat(normalizedLevel) + " " + title);
+      result.push(`${"#".repeat(normalizedLevel)} ${title}`);
     } else {
       result.push(line);
       if (line.trim() === "") {
@@ -69,7 +69,7 @@ function normalizeListFormatting(markdown: string): string {
       if (/^(\s*)[-*+]\s+/.test(line)) {
         const indent = line.match(/^(\s*)/)?.[1].length || 0;
         const depth = Math.floor(indent / 2);
-        return "  ".repeat(depth) + "- " + line.trim().replace(/^[-*+]\s+/, "");
+        return `${"  ".repeat(depth)}- ${line.trim().replace(/^[-*+]\s+/, "")}`;
       }
       return line;
     })

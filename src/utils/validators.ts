@@ -1,6 +1,6 @@
 // src/utils/validators.ts
 
-import * as cheerio from "cheerio";
+import * as cheerio from "cheerio/slim";
 
 /**
  * Validate if HTML contains extractable content

@@ -216,25 +216,25 @@ const LONG_HTML = `
 `;
 
 // Basic conversion tests
-test("MarkdownParser: converts simple HTML to markdown", (t) => {
+test("MarkdownParser: converts simple HTML to markdown", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(SIMPLE_HTML);
+  const result = await parser.convert(SIMPLE_HTML);
 
   t.true(result.markdown.includes("# Hello World"));
   t.true(result.markdown.includes("This is a test paragraph"));
 });
 
-test("MarkdownParser: returns metadata in result", (t) => {
+test("MarkdownParser: returns metadata in result", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(SIMPLE_HTML);
+  const result = await parser.convert(SIMPLE_HTML);
 
   t.truthy(result.metadata);
   t.is(typeof result.metadata, "object");
 });
 
-test("MarkdownParser: returns stats in result", (t) => {
+test("MarkdownParser: returns stats in result", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(SIMPLE_HTML);
+  const result = await parser.convert(SIMPLE_HTML);
 
   t.truthy(result.stats);
   t.is(typeof result.stats.inputLength, "number");
@@ -246,9 +246,9 @@ test("MarkdownParser: returns stats in result", (t) => {
 });
 
 // Code block tests
-test("MarkdownParser: converts code blocks with language detection", (t) => {
+test("MarkdownParser: converts code blocks with language detection", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_CODE);
+  const result = await parser.convert(HTML_WITH_CODE);
 
   // Code blocks may have extra newlines due to post-processing
   t.true(
@@ -263,17 +263,17 @@ test("MarkdownParser: converts code blocks with language detection", (t) => {
   t.true(result.markdown.includes('print("hello")'));
 });
 
-test("MarkdownParser: handles code blocks without language", (t) => {
+test("MarkdownParser: handles code blocks without language", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_CODE);
+  const result = await parser.convert(HTML_WITH_CODE);
 
   t.true(result.markdown.includes("plain code"));
   t.true(result.markdown.includes("```"));
 });
 
-test("MarkdownParser: extracts clean code from GitHub data attributes", (t) => {
+test("MarkdownParser: extracts clean code from GitHub data attributes", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_GITHUB_CODE);
+  const result = await parser.convert(HTML_WITH_GITHUB_CODE);
 
   // Should use clean code from data attribute, not HTML-escaped version
   // Note: The actual implementation correctly extracts clean code
@@ -281,18 +281,18 @@ test("MarkdownParser: extracts clean code from GitHub data attributes", (t) => {
   t.true(result.markdown.includes("true"));
 });
 
-test("MarkdownParser: wraps bare pre tags in code elements", (t) => {
+test("MarkdownParser: wraps bare pre tags in code elements", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_BARE_PRE);
+  const result = await parser.convert(HTML_WITH_BARE_PRE);
 
   t.true(result.markdown.includes("```"));
   t.true(result.markdown.includes("function test()"));
 });
 
 // Image tests
-test("MarkdownParser: converts images with alt text", (t) => {
+test("MarkdownParser: converts images with alt text", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_IMAGES);
+  const result = await parser.convert(HTML_WITH_IMAGES);
 
   // Images may have leading slash if baseUrl processing adds it
   t.true(
@@ -301,16 +301,16 @@ test("MarkdownParser: converts images with alt text", (t) => {
   );
 });
 
-test("MarkdownParser: includes image title when present", (t) => {
+test("MarkdownParser: includes image title when present", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_IMAGES);
+  const result = await parser.convert(HTML_WITH_IMAGES);
 
   t.true(result.markdown.includes('"Test title"'));
 });
 
-test("MarkdownParser: handles lazy-loaded images with data-src", (t) => {
+test("MarkdownParser: handles lazy-loaded images with data-src", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_IMAGES);
+  const result = await parser.convert(HTML_WITH_IMAGES);
 
   // Lazy loaded images should be extracted (might use data-src or fallback to src)
   t.true(
@@ -319,9 +319,11 @@ test("MarkdownParser: handles lazy-loaded images with data-src", (t) => {
   );
 });
 
-test("MarkdownParser: removes images when includeImages is false", (t) => {
+test("MarkdownParser: removes images when includeImages is false", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_IMAGES, { includeImages: false });
+  const result = await parser.convert(HTML_WITH_IMAGES, {
+    includeImages: false,
+  });
 
   t.false(result.markdown.includes("!["));
   t.false(result.markdown.includes("test.jpg"));
@@ -329,9 +331,9 @@ test("MarkdownParser: removes images when includeImages is false", (t) => {
 });
 
 // Link tests
-test("MarkdownParser: converts links to markdown format", (t) => {
+test("MarkdownParser: converts links to markdown format", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_LINKS);
+  const result = await parser.convert(HTML_WITH_LINKS);
 
   // Links should be converted (may have trailing slash)
   t.true(
@@ -340,9 +342,9 @@ test("MarkdownParser: converts links to markdown format", (t) => {
   );
 });
 
-test("MarkdownParser: removes links but keeps text when includeLinks is false", (t) => {
+test("MarkdownParser: removes links but keeps text when includeLinks is false", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_LINKS, { includeLinks: false });
+  const result = await parser.convert(HTML_WITH_LINKS, { includeLinks: false });
 
   t.true(result.markdown.includes("Example Link"));
   t.false(result.markdown.includes("[Example Link]"));
@@ -351,17 +353,17 @@ test("MarkdownParser: removes links but keeps text when includeLinks is false", 
 });
 
 // Table tests
-test("MarkdownParser: converts tables to markdown format", (t) => {
+test("MarkdownParser: converts tables to markdown format", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_TABLE);
+  const result = await parser.convert(HTML_WITH_TABLE);
 
   t.true(result.markdown.includes("| Header 1 | Header 2 | Header 3 |"));
   t.true(result.markdown.includes("| Cell 1 | Cell 2 | Cell 3 |"));
 });
 
-test("MarkdownParser: handles table alignment", (t) => {
+test("MarkdownParser: handles table alignment", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_TABLE);
+  const result = await parser.convert(HTML_WITH_TABLE);
 
   // Check for alignment markers (may vary based on processing)
   const hasLeftAlign = result.markdown.includes("---");
@@ -374,34 +376,36 @@ test("MarkdownParser: handles table alignment", (t) => {
   t.true(hasLeftAlign || hasCenterAlign || hasRightAlign);
 });
 
-test("MarkdownParser: pads table rows to match header length", (t) => {
+test("MarkdownParser: pads table rows to match header length", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_TABLE);
+  const result = await parser.convert(HTML_WITH_TABLE);
 
   // Second row has only 2 cells, should be padded to 3
   t.true(result.markdown.includes("| Cell 4 | Cell 5 |  |"));
 });
 
-test("MarkdownParser: handles simple tables without thead", (t) => {
+test("MarkdownParser: handles simple tables without thead", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_SIMPLE_TABLE);
+  const result = await parser.convert(HTML_WITH_SIMPLE_TABLE);
 
   t.true(result.markdown.includes("| First | Second |"));
   t.true(result.markdown.includes("| A | B |"));
 });
 
-test("MarkdownParser: removes tables when includeTables is false", (t) => {
+test("MarkdownParser: removes tables when includeTables is false", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_TABLE, { includeTables: false });
+  const result = await parser.convert(HTML_WITH_TABLE, {
+    includeTables: false,
+  });
 
   t.false(result.markdown.includes("| Header 1"));
   t.false(result.markdown.includes("| Cell 1"));
 });
 
 // Blockquote tests
-test("MarkdownParser: converts blockquotes with proper formatting", (t) => {
+test("MarkdownParser: converts blockquotes with proper formatting", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_BLOCKQUOTE);
+  const result = await parser.convert(HTML_WITH_BLOCKQUOTE);
 
   // Blockquotes should have > markers (content may vary based on processing)
   t.true(result.markdown.includes(">"));
@@ -412,17 +416,17 @@ test("MarkdownParser: converts blockquotes with proper formatting", (t) => {
 });
 
 // List tests
-test("MarkdownParser: converts unordered lists", (t) => {
+test("MarkdownParser: converts unordered lists", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_LISTS);
+  const result = await parser.convert(HTML_WITH_LISTS);
 
   t.true(result.markdown.includes("- Item 1"));
   t.true(result.markdown.includes("- Item 2"));
 });
 
-test("MarkdownParser: converts ordered lists", (t) => {
+test("MarkdownParser: converts ordered lists", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_LISTS);
+  const result = await parser.convert(HTML_WITH_LISTS);
 
   // Ordered lists should contain numbers and content
   t.true(
@@ -432,34 +436,36 @@ test("MarkdownParser: converts ordered lists", (t) => {
 });
 
 // Metadata extraction tests
-test("MarkdownParser: extracts metadata from HTML", (t) => {
+test("MarkdownParser: extracts metadata from HTML", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_METADATA);
+  const result = await parser.convert(HTML_WITH_METADATA);
 
   t.is(result.metadata.title, "Article Title");
   t.is(result.metadata.author, "John Doe");
   t.is(result.metadata.siteName, "Test Site");
 });
 
-test("MarkdownParser: includes metadata as frontmatter by default", (t) => {
+test("MarkdownParser: includes metadata as frontmatter by default", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_METADATA);
+  const result = await parser.convert(HTML_WITH_METADATA);
 
   t.true(result.markdown.startsWith("---"));
   t.true(result.markdown.includes("title: Article Title"));
   t.true(result.markdown.includes("---\n\n"));
 });
 
-test("MarkdownParser: excludes metadata when includeMeta is false", (t) => {
+test("MarkdownParser: excludes metadata when includeMeta is false", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_METADATA, { includeMeta: false });
+  const result = await parser.convert(HTML_WITH_METADATA, {
+    includeMeta: false,
+  });
 
   t.false(result.markdown.startsWith("---\ntitle:"));
 });
 
-test("MarkdownParser: calculates word count and reading time", (t) => {
+test("MarkdownParser: calculates word count and reading time", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(SIMPLE_HTML);
+  const result = await parser.convert(SIMPLE_HTML);
 
   t.is(typeof result.metadata.wordCount, "number");
   t.true(result.metadata.wordCount! > 0);
@@ -468,17 +474,19 @@ test("MarkdownParser: calculates word count and reading time", (t) => {
 });
 
 // Content extraction tests
-test("MarkdownParser: extracts main content with Readability by default", (t) => {
+test("MarkdownParser: extracts main content with Readability by default", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_NOISE);
+  const result = await parser.convert(HTML_WITH_NOISE);
 
   t.true(result.markdown.includes("Main Content"));
   t.is(result.stats.readabilitySuccess, true);
 });
 
-test("MarkdownParser: skips Readability when extractContent is false", (t) => {
+test("MarkdownParser: skips Readability when extractContent is false", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_NOISE, { extractContent: false });
+  const result = await parser.convert(HTML_WITH_NOISE, {
+    extractContent: false,
+  });
 
   // Should include navigation and footer when not extracting
   t.true(
@@ -488,10 +496,10 @@ test("MarkdownParser: skips Readability when extractContent is false", (t) => {
   t.is(result.stats.readabilitySuccess, false);
 });
 
-test("MarkdownParser: handles Readability failure gracefully", (t) => {
+test("MarkdownParser: handles Readability failure gracefully", async (t) => {
   const parser = new MarkdownParser();
   const tinyHtml = "<html><body><p>Too small.</p></body></html>";
-  const result = parser.convert(tinyHtml);
+  const result = await parser.convert(tinyHtml);
 
   // Should still produce output even if Readability fails
   t.truthy(result.markdown);
@@ -499,9 +507,9 @@ test("MarkdownParser: handles Readability failure gracefully", (t) => {
 });
 
 // Empty element removal tests
-test("MarkdownParser: removes empty paragraphs and elements", (t) => {
+test("MarkdownParser: removes empty paragraphs and elements", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_EMPTY_ELEMENTS);
+  const result = await parser.convert(HTML_WITH_EMPTY_ELEMENTS);
 
   t.true(result.markdown.includes("Real content"));
   t.true(result.markdown.includes("More content"));
@@ -510,22 +518,22 @@ test("MarkdownParser: removes empty paragraphs and elements", (t) => {
 });
 
 // Post-processing tests
-test("MarkdownParser: removes excessive blank lines", (t) => {
+test("MarkdownParser: removes excessive blank lines", async (t) => {
   const parser = new MarkdownParser();
   const htmlWithBlanks = `<html><body>
     <p>First</p>
     <br><br><br>
     <p>Second</p>
   </body></html>`;
-  const result = parser.convert(htmlWithBlanks);
+  const result = await parser.convert(htmlWithBlanks);
 
   // Should not have more than 2 consecutive newlines
   t.false(result.markdown.includes("\n\n\n\n"));
 });
 
-test("MarkdownParser: ensures proper spacing around code blocks", (t) => {
+test("MarkdownParser: ensures proper spacing around code blocks", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_CODE);
+  const result = await parser.convert(HTML_WITH_CODE);
 
   // Code blocks should have blank lines before/after
   const lines = result.markdown.split("\n");
@@ -537,14 +545,14 @@ test("MarkdownParser: ensures proper spacing around code blocks", (t) => {
   t.true(codeBlockStarts.length > 0);
 });
 
-test("MarkdownParser: ensures proper spacing around headings", (t) => {
+test("MarkdownParser: ensures proper spacing around headings", async (t) => {
   const parser = new MarkdownParser();
   const htmlWithHeadings = `<html><body>
     <p>Paragraph before</p>
     <h2>Heading</h2>
     <p>Paragraph after</p>
   </body></html>`;
-  const result = parser.convert(htmlWithHeadings);
+  const result = await parser.convert(htmlWithHeadings);
 
   // Heading should exist in the output
   t.true(result.markdown.includes("Heading"));
@@ -553,18 +561,18 @@ test("MarkdownParser: ensures proper spacing around headings", (t) => {
 });
 
 // Options tests
-test("MarkdownParser: respects maxLength option", (t) => {
+test("MarkdownParser: respects maxLength option", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(LONG_HTML, { maxLength: 500 });
+  const result = await parser.convert(LONG_HTML, { maxLength: 500 });
 
   t.true(result.markdown.length <= 550); // Some margin for truncation message
   t.true(result.markdown.includes("[Content truncated]"));
 });
 
-test("MarkdownParser: resolves relative URLs with baseUrl", (t) => {
+test("MarkdownParser: resolves relative URLs with baseUrl", async (t) => {
   const parser = new MarkdownParser();
   const html = '<html><body><a href="/page">Link</a></body></html>';
-  const result = parser.convert(html, { baseUrl: "https://example.com" });
+  const result = await parser.convert(html, { baseUrl: "https://example.com" });
 
   t.true(
     result.markdown.includes("https://example.com/page") ||
@@ -572,7 +580,7 @@ test("MarkdownParser: resolves relative URLs with baseUrl", (t) => {
   );
 });
 
-test("MarkdownParser: accepts custom rules", (t) => {
+test("MarkdownParser: accepts custom rules", async (t) => {
   const parser = new MarkdownParser();
   const customRules = [
     {
@@ -583,23 +591,23 @@ test("MarkdownParser: accepts custom rules", (t) => {
   ];
 
   const html = "<html><body><strong>Bold</strong></body></html>";
-  const result = parser.convert(html, { customRules });
+  const result = await parser.convert(html, { customRules });
 
   t.true(result.markdown.includes("CUSTOM:Bold"));
 });
 
 // Edge cases
-test("MarkdownParser: handles empty HTML", (t) => {
+test("MarkdownParser: handles empty HTML", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert("");
+  const result = await parser.convert("");
 
   t.truthy(result.markdown);
   t.is(typeof result.markdown, "string");
 });
 
-test("MarkdownParser: handles HTML without body", (t) => {
+test("MarkdownParser: handles HTML without body", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(
+  const result = await parser.convert(
     "<html><head><title>Test</title></head></html>",
   );
 
@@ -607,37 +615,37 @@ test("MarkdownParser: handles HTML without body", (t) => {
   t.is(typeof result.markdown, "string");
 });
 
-test("MarkdownParser: handles malformed HTML gracefully", (t) => {
+test("MarkdownParser: handles malformed HTML gracefully", async (t) => {
   const parser = new MarkdownParser();
   const malformed =
     "<html><body><p>Unclosed paragraph<div>Nested incorrectly</p></div>";
-  const result = parser.convert(malformed);
+  const result = await parser.convert(malformed);
 
   t.truthy(result.markdown);
   t.true(result.markdown.length > 0);
 });
 
-test("MarkdownParser: preserves special characters in text", (t) => {
+test("MarkdownParser: preserves special characters in text", async (t) => {
   const parser = new MarkdownParser();
   const html = "<html><body><p>Price: $100 &amp; €50</p></body></html>";
-  const result = parser.convert(html);
+  const result = await parser.convert(html);
 
   t.true(result.markdown.includes("$100"));
   t.true(result.markdown.includes("€50") || result.markdown.includes("&"));
 });
 
-test("MarkdownParser: handles nested formatting", (t) => {
+test("MarkdownParser: handles nested formatting", async (t) => {
   const parser = new MarkdownParser();
   const html =
     "<html><body><p><strong>Bold <em>and italic</em></strong></p></body></html>";
-  const result = parser.convert(html);
+  const result = await parser.convert(html);
 
   t.true(result.markdown.includes("**"));
   t.true(result.markdown.includes("*"));
 });
 
 // Multiple option combinations
-test("MarkdownParser: applies multiple options together", (t) => {
+test("MarkdownParser: applies multiple options together", async (t) => {
   const parser = new MarkdownParser();
   const html = `
     <html>
@@ -650,7 +658,7 @@ test("MarkdownParser: applies multiple options together", (t) => {
     </html>
   `;
 
-  const result = parser.convert(html, {
+  const result = await parser.convert(html, {
     includeImages: false,
     includeLinks: false,
     includeTables: false,
@@ -665,24 +673,24 @@ test("MarkdownParser: applies multiple options together", (t) => {
 });
 
 // Statistics validation
-test("MarkdownParser: provides accurate input/output lengths", (t) => {
+test("MarkdownParser: provides accurate input/output lengths", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(SIMPLE_HTML);
+  const result = await parser.convert(SIMPLE_HTML);
 
   t.is(result.stats.inputLength, SIMPLE_HTML.length);
   t.true(result.stats.outputLength > 0);
   t.is(result.stats.outputLength, result.markdown.length);
 });
 
-test("MarkdownParser: measures processing time", (t) => {
+test("MarkdownParser: measures processing time", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(SIMPLE_HTML);
+  const result = await parser.convert(SIMPLE_HTML);
 
   t.true(result.stats.processingTime >= 0);
   t.true(result.stats.processingTime < 10000); // Should be under 10 seconds
 });
 
-test("MarkdownParser: counts images and links correctly", (t) => {
+test("MarkdownParser: counts images and links correctly", async (t) => {
   const parser = new MarkdownParser();
   const html = `
     <html><body>
@@ -694,17 +702,17 @@ test("MarkdownParser: counts images and links correctly", (t) => {
     </body></html>
   `;
 
-  const result = parser.convert(html);
+  const result = await parser.convert(html);
 
   t.is(result.stats.imageCount, 2);
   t.is(result.stats.linkCount, 3);
 });
 
 // Markdown formatting consistency
-test("MarkdownParser: uses consistent heading style", (t) => {
+test("MarkdownParser: uses consistent heading style", async (t) => {
   const parser = new MarkdownParser();
   const html = "<html><body><h1>H1</h1><h2>H2</h2><h3>H3</h3></body></html>";
-  const result = parser.convert(html);
+  const result = await parser.convert(html);
 
   // Headings should exist (checking content rather than exact formatting)
   t.true(result.markdown.includes("H1"));
@@ -714,26 +722,26 @@ test("MarkdownParser: uses consistent heading style", (t) => {
   t.true(result.markdown.includes("#"));
 });
 
-test("MarkdownParser: uses consistent list markers", (t) => {
+test("MarkdownParser: uses consistent list markers", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_LISTS);
+  const result = await parser.convert(HTML_WITH_LISTS);
 
   // Should use - for unordered lists
   t.true(result.markdown.includes("- Item"));
 });
 
-test("MarkdownParser: ends output with single newline", (t) => {
+test("MarkdownParser: ends output with single newline", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(SIMPLE_HTML);
+  const result = await parser.convert(SIMPLE_HTML);
 
   t.true(result.markdown.endsWith("\n"));
   t.false(result.markdown.endsWith("\n\n"));
 });
 
 // YAML frontmatter formatting
-test("MarkdownParser: formats frontmatter correctly", (t) => {
+test("MarkdownParser: formats frontmatter correctly", async (t) => {
   const parser = new MarkdownParser();
-  const result = parser.convert(HTML_WITH_METADATA);
+  const result = await parser.convert(HTML_WITH_METADATA);
 
   const lines = result.markdown.split("\n");
   t.is(lines[0], "---");
@@ -742,7 +750,7 @@ test("MarkdownParser: formats frontmatter correctly", (t) => {
   t.is(lines[closingIndex + 1], "");
 });
 
-test("MarkdownParser: escapes special characters in frontmatter values", (t) => {
+test("MarkdownParser: escapes special characters in frontmatter values", async (t) => {
   const parser = new MarkdownParser();
   const html = `
     <html>
@@ -755,7 +763,7 @@ Line 2">
     </html>
   `;
 
-  const result = parser.convert(html);
+  const result = await parser.convert(html);
 
   // Values with colons or newlines should be quoted
   if (result.markdown.includes("Title: With Colon")) {

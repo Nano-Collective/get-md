@@ -1,20 +1,18 @@
 // src/parsers/markdown-parser.ts
 
+import * as cheerio from "cheerio/slim";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
-import { Readability } from "@mozilla/readability";
-import { JSDOM } from "jsdom";
-import * as cheerio from "cheerio";
+import { extractMetadata } from "../extractors/metadata-extractor.js";
 import { cleanHTML } from "../optimizers/html-cleaner.js";
 import { formatForLLM } from "../optimizers/llm-formatter.js";
 import { enhanceStructure } from "../optimizers/structure-enhancer.js";
-import { extractMetadata } from "../extractors/metadata-extractor.js";
 import { checkLLMModel } from "../converters/llm-manager.js";
 import { LLMConverter } from "../converters/llm-converter.js";
 import type {
+  ContentMetadata,
   MarkdownOptions,
   MarkdownResult,
-  ContentMetadata,
   TurndownNode,
   TurndownRule,
   LLMEventCallback,
@@ -154,15 +152,19 @@ export class MarkdownParser {
 
     if (opts.extractContent) {
       try {
-        const extracted = this.extractMainContent(html, opts.baseUrl);
+        const extracted = await this.extractMainContent(html, opts.baseUrl);
         if (extracted) {
           contentHtml = extracted.content;
           metadata = extracted.metadata;
           readabilitySuccess = true;
         }
-      } catch {
-        // Fallback to raw HTML if Readability fails
-        console.warn("Readability extraction failed, using raw HTML");
+      } catch (error) {
+        // Fallback to raw HTML if Readability fails or is unavailable (React Native)
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        console.warn(
+          `Readability extraction failed: ${errorMessage}. Using raw HTML.`,
+        );
       }
     }
 
@@ -336,8 +338,7 @@ export class MarkdownParser {
 
     // Validate length
     if (opts.maxLength && markdown.length > opts.maxLength) {
-      markdown =
-        markdown.substring(0, opts.maxLength) + "\n\n[Content truncated]";
+      markdown = `${markdown.substring(0, opts.maxLength)}\n\n[Content truncated]`;
     }
 
     const processingTime = Date.now() - startTime;
@@ -361,32 +362,63 @@ export class MarkdownParser {
     };
   }
 
-  private extractMainContent(
+  private async extractMainContent(
     html: string,
     baseUrl?: string,
-  ): { content: string; metadata: ContentMetadata } | null {
-    const doc = new JSDOM(html, { url: baseUrl });
-    const reader = new Readability(doc.window.document, {
-      // Increase content threshold to avoid extracting navigation/sidebars
-      charThreshold: 500,
-    });
+  ): Promise<{ content: string; metadata: ContentMetadata } | null> {
+    try {
+      // Use happy-dom-without-node for DOM implementation
+      // Works in Node.js, React Native, and browser environments
+      const { Window } = await import("happy-dom-without-node");
+      const { Readability } = await import("@mozilla/readability");
 
-    const article = reader.parse();
+      // Save original process (happy-dom overrides it)
+      const originalProcess =
+        typeof globalThis !== "undefined"
+          ? (globalThis as typeof globalThis & { process?: typeof process })
+              .process
+          : undefined;
 
-    if (!article) {
-      return null;
+      const window = new Window({
+        url: baseUrl || "https://example.com",
+      });
+      const document = window.document;
+      document.body.innerHTML = html;
+
+      // Restore original process
+      if (originalProcess && typeof globalThis !== "undefined") {
+        (
+          globalThis as typeof globalThis & { process?: typeof process }
+        ).process = originalProcess;
+      }
+
+      // Cast to bypass TypeScript type checking
+      // happy-dom-without-node implements enough of the DOM API for Readability
+      const reader = new Readability(document as unknown as Document, {
+        charThreshold: 500,
+      });
+
+      const article = reader.parse();
+
+      if (!article) {
+        return null;
+      }
+
+      return {
+        content: article.content || "",
+        metadata: {
+          title: article.title || undefined,
+          author: article.byline || undefined,
+          excerpt: article.excerpt || undefined,
+          siteName: article.siteName || undefined,
+        },
+      };
+    } catch {
+      // Content extraction not available
+      throw new Error(
+        "Content extraction failed. Set extractContent: false to skip content extraction.",
+      );
     }
-
-    return {
-      content: article.content || "",
-      metadata: {
-        title: article.title || undefined,
-        author: article.byline || undefined,
-        excerpt: article.excerpt || undefined,
-        siteName: article.siteName || undefined,
-        // wordCount and readingTime will be calculated from final markdown
-      },
-    };
   }
 
   private normalizeCodeBlocks(html: string): string {
@@ -531,9 +563,7 @@ export class MarkdownParser {
       replacement: (_content, node: TurndownNode) => {
         const text = node.textContent || "";
         const lines = text.trim().split("\n");
-        return (
-          "\n" + lines.map((line: string) => `> ${line}`).join("\n") + "\n"
-        );
+        return `\n${lines.map((line: string) => `> ${line}`).join("\n")}\n`;
       },
     });
 
@@ -596,7 +626,7 @@ export class MarkdownParser {
     });
 
     // Build markdown table
-    let markdown = "\n| " + headers.join(" | ") + " |\n";
+    let markdown = `\n| ${headers.join(" | ")} |\n`;
 
     // Add alignment row
     const alignRow = alignments.map((align) => {
@@ -604,14 +634,14 @@ export class MarkdownParser {
       if (align === "right") return "---:";
       return "---";
     });
-    markdown += "| " + alignRow.join(" | ") + " |\n";
+    markdown += `| ${alignRow.join(" | ")} |\n`;
 
     // Add data rows
     rows.forEach((row) => {
-      markdown += "| " + row.join(" | ") + " |\n";
+      markdown += `| ${row.join(" | ")} |\n`;
     });
 
-    return markdown + "\n";
+    return `${markdown}\n`;
   }
 
   private applyCustomRules(rules: TurndownRule[]): void {
@@ -640,7 +670,7 @@ export class MarkdownParser {
 
     yaml.push("---");
 
-    return yaml.join("\n") + "\n\n" + markdown;
+    return `${yaml.join("\n")}\n\n${markdown}`;
   }
 
   private calculateMarkdownStats(markdown: string): {
@@ -734,7 +764,7 @@ export class MarkdownParser {
     // Remove trailing whitespace from lines
     markdown = markdown.replace(/[^\S\n]+$/gm, "");
 
-    return markdown.trim() + "\n";
+    return `${markdown.trim()}\n`;
   }
 
   private normalizeOptions(
