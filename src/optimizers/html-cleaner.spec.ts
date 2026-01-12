@@ -11,6 +11,7 @@ test("removes script tags", (t) => {
     </div>
   `;
   const result = cleanHTML(html);
+  // nosemgrep: javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag
   t.false(result.includes("<script>"));
   t.true(result.includes("Content"));
 });

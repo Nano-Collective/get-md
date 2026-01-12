@@ -425,7 +425,9 @@ export class MarkdownParser {
         url: baseUrl || "https://example.com",
       });
       const document = window.document;
-      document.body.innerHTML = html;
+      // This is safe - we're parsing user-provided HTML in an isolated happy-dom environment,
+      // not in a browser context. The HTML is then processed by Readability for extraction.
+      document.body.innerHTML = html; // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
 
       // Restore original process
       if (originalProcess && typeof globalThis !== "undefined") {

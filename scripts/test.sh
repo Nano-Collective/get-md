@@ -37,4 +37,23 @@ echo ""
 echo "✅ Knip check passed"
 echo ""
 
+echo "🔒 Running security audit..."
+pnpm test:audit
+echo ""
+echo "✅ Audit passed"
+echo ""
+
+echo "🛡️  Running Semgrep security scan..."
+if command -v semgrep &> /dev/null; then
+    pnpm test:security
+    echo ""
+    echo "✅ Security scan passed"
+    echo ""
+else
+    echo "⚠️  Semgrep not installed - skipping security scan"
+    echo "   Install with: pip install semgrep or brew install semgrep"
+    echo ""
+fi
+
 echo "✅ Everything passes!"
+

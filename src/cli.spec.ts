@@ -483,3 +483,85 @@ test("CLI: combines --use-llm with other flags", async (t) => {
     await cleanupTempFile(inputFile);
   }
 });
+
+// ============================================================================
+// New CLI Flag Tests (--model-path, --compare, --show-config)
+// ============================================================================
+
+test("CLI: --model-path shows default model directory", async (t) => {
+  const { stdout, exitCode } = await runCli(["--model-path"]);
+
+  t.is(exitCode, 0);
+  // Should output a path containing .get-md and models
+  t.true(stdout.includes(".get-md") || stdout.includes("models"));
+  // Should end with .gguf file extension
+  t.true(stdout.trim().endsWith(".gguf"));
+});
+
+test("CLI: --help shows --model-path option", async (t) => {
+  const { stdout } = await runCli(["--help"]);
+
+  t.true(stdout.includes("--model-path"));
+  t.true(stdout.includes("model storage path"));
+});
+
+test("CLI: --show-config shows configuration info", async (t) => {
+  const { stdout, exitCode } = await runCli(["--show-config"]);
+
+  t.is(exitCode, 0);
+  t.true(stdout.includes("Configuration"));
+  // Should show either "Config file:" or "None found"
+  t.true(stdout.includes("Config file") || stdout.includes("None found"));
+});
+
+test("CLI: --show-config lists supported config file names when none found", async (t) => {
+  // This test may find a config in home dir, so we check for either case
+  const { stdout, exitCode } = await runCli(["--show-config"]);
+
+  t.is(exitCode, 0);
+  // If no config found, should list supported names
+  if (stdout.includes("None found")) {
+    t.true(stdout.includes(".getmdrc"));
+    t.true(stdout.includes("get-md.config.json"));
+  }
+});
+
+test("CLI: --help shows --show-config option", async (t) => {
+  const { stdout } = await runCli(["--help"]);
+
+  t.true(stdout.includes("--show-config"));
+  t.true(stdout.includes("--config"));
+});
+
+test("CLI: --help shows --compare option", async (t) => {
+  const { stdout } = await runCli(["--help"]);
+
+  t.true(stdout.includes("--compare"));
+  t.true(stdout.includes("Compare") || stdout.includes("compare"));
+});
+
+test("CLI: --compare requires input", async (t) => {
+  // Running --compare without input should fail or prompt
+  const { exitCode } = await runCli(["--compare"]);
+
+  // Should fail because no input provided
+  t.true(exitCode !== 0 || exitCode === null);
+});
+
+test("CLI: --compare with file falls back when model missing", async (t) => {
+  const inputFile = await createTempFile(SIMPLE_HTML);
+
+  try {
+    // In non-interactive mode, compare should fail gracefully when model missing
+    const { exitCode, stderr } = await runCli([inputFile, "--compare"]);
+
+    // Either succeeds with fallback message or exits with error about model
+    t.true(
+      exitCode === 0 ||
+        stderr.includes("model") ||
+        stderr.includes("Cannot run comparison"),
+    );
+  } finally {
+    await cleanupTempFile(inputFile);
+  }
+});

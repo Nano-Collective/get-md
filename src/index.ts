@@ -114,6 +114,15 @@ export {
 // Re-export LLM classes for advanced usage
 export { LLMManager } from "./converters/llm-manager.js";
 
+// Re-export config utilities
+export {
+  findConfigPath,
+  type GetMdConfig,
+  loadConfig,
+  loadConfigFromFile,
+  mergeConfigWithOptions,
+} from "./utils/config-loader.js";
+
 // Re-export types
 export type {
   // Core types

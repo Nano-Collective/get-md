@@ -14,6 +14,11 @@ import {
   removeLLMModel,
 } from "./index.js";
 import type { LLMEvent, MarkdownOptions } from "./types.js";
+import {
+  findConfigPath,
+  loadConfig,
+  mergeConfigWithOptions,
+} from "./utils/config-loader.js";
 
 interface CliOptions {
   output?: string;
@@ -33,6 +38,12 @@ interface CliOptions {
   downloadModel?: boolean;
   modelInfo?: boolean;
   removeModel?: boolean;
+  modelPath?: boolean;
+  // Config
+  config?: string;
+  showConfig?: boolean;
+  // Comparison mode
+  compare?: boolean;
 }
 
 const program = new Command();
@@ -64,6 +75,12 @@ program
   .option("--download-model", "Download the LLM model")
   .option("--model-info", "Show LLM model information and status")
   .option("--remove-model", "Remove the downloaded LLM model")
+  .option("--model-path", "Show default model storage path")
+  // Config options
+  .option("--config <path>", "Path to config file")
+  .option("--show-config", "Show current configuration and exit")
+  // Comparison mode
+  .option("--compare", "Compare Turndown vs LLM conversion side-by-side")
   .action(async (input: string | undefined, options: CliOptions) => {
     try {
       // Handle model management commands first
@@ -82,8 +99,24 @@ program
         return;
       }
 
+      if (options.modelPath) {
+        handleModelPath();
+        return;
+      }
+
+      if (options.showConfig) {
+        handleShowConfig(options.config);
+        return;
+      }
+
       // Get input HTML
       const html = await getInput(input);
+
+      // Comparison mode
+      if (options.compare) {
+        await handleComparisonMode(html, options);
+        return;
+      }
 
       // Markdown conversion mode
       await handleMarkdownConversion(html, options);
@@ -131,11 +164,36 @@ async function handleMarkdownConversion(
   html: string,
   options: CliOptions,
 ): Promise<void> {
-  // Check if LLM mode is requested
-  if (options.useLlm) {
+  // Load config from file(s)
+  const fileConfig = loadConfig();
+
+  // Build options from CLI flags
+  const cliOptions: MarkdownOptions = {
+    extractContent: options.extract,
+    includeMeta: options.frontmatter,
+    includeImages: options.images,
+    includeLinks: options.links,
+    includeTables: options.tables,
+    maxLength: parseInt(options.maxLength, 10),
+    baseUrl: options.baseUrl,
+    // LLM options from CLI
+    useLLM: options.useLlm,
+    llmModelPath: options.llmModelPath,
+    llmTemperature: options.llmTemperature
+      ? parseFloat(options.llmTemperature)
+      : undefined,
+    // Event callbacks for CLI feedback
+    onLLMEvent: options.verbose ? createLLMEventHandler() : undefined,
+  };
+
+  // Merge config with CLI options (CLI takes precedence)
+  const conversionOptions = mergeConfigWithOptions(fileConfig, cliOptions);
+
+  // Check if LLM mode is requested (from config or CLI)
+  if (conversionOptions.useLLM) {
     // Check if model is available
     const status = await checkLLMModel({
-      modelPath: options.llmModelPath,
+      modelPath: conversionOptions.llmModelPath,
     });
 
     if (!status.available) {
@@ -148,37 +206,19 @@ async function handleMarkdownConversion(
         await handleDownloadModel();
       } else {
         console.error("LLM mode requires the model. Falling back to Turndown.");
-        options.useLlm = false;
+        conversionOptions.useLLM = false;
       }
     }
   }
 
-  const conversionOptions: MarkdownOptions = {
-    extractContent: options.extract,
-    includeMeta: options.frontmatter,
-    includeImages: options.images,
-    includeLinks: options.links,
-    includeTables: options.tables,
-    maxLength: parseInt(options.maxLength, 10),
-    baseUrl: options.baseUrl,
-    // LLM options
-    useLLM: options.useLlm,
-    llmModelPath: options.llmModelPath,
-    llmTemperature: options.llmTemperature
-      ? parseFloat(options.llmTemperature)
-      : undefined,
-    // Event callbacks for CLI feedback
-    onLLMEvent: options.verbose ? createLLMEventHandler() : undefined,
-  };
-
   // Show spinner for LLM conversion
-  if (options.useLlm && process.stdout.isTTY) {
+  if (conversionOptions.useLLM && process.stdout.isTTY) {
     process.stderr.write("Converting with LLM... ");
   }
 
   const result = await convertToMarkdown(html, conversionOptions);
 
-  if (options.useLlm && process.stdout.isTTY) {
+  if (conversionOptions.useLLM && process.stdout.isTTY) {
     process.stderr.write("done!\n");
   }
 
@@ -290,6 +330,164 @@ async function handleRemoveModel(): Promise<void> {
     console.log("✓ Model removed successfully.");
   } else {
     console.log("Cancelled.");
+  }
+}
+
+function handleModelPath(): void {
+  const info = getLLMModelInfo();
+  console.log(info.defaultPath);
+}
+
+async function handleComparisonMode(
+  html: string,
+  options: CliOptions,
+): Promise<void> {
+  // Check if LLM model is available
+  const status = await checkLLMModel({
+    modelPath: options.llmModelPath,
+  });
+
+  if (!status.available) {
+    const shouldDownload = await promptYesNo(
+      "LLM model not found. Download ReaderLM-v2 (986MB) to run comparison?",
+    );
+
+    if (shouldDownload) {
+      await handleDownloadModel();
+    } else {
+      console.error("Cannot run comparison without LLM model.");
+      process.exit(1);
+    }
+  }
+
+  console.log("\nRunning comparison: Turndown vs LLM\n");
+  console.log("=".repeat(50));
+
+  // Common options
+  const baseOptions: MarkdownOptions = {
+    extractContent: options.extract,
+    includeMeta: options.frontmatter,
+    includeImages: options.images,
+    includeLinks: options.links,
+    includeTables: options.tables,
+    maxLength: parseInt(options.maxLength, 10),
+    baseUrl: options.baseUrl,
+  };
+
+  // Run Turndown conversion
+  console.log("\n[1/2] Converting with Turndown...");
+  const turndownStart = Date.now();
+  const turndownResult = await convertToMarkdown(html, {
+    ...baseOptions,
+    useLLM: false,
+  });
+  const turndownTime = Date.now() - turndownStart;
+  console.log(`      Done in ${turndownTime}ms`);
+
+  // Run LLM conversion
+  console.log("\n[2/2] Converting with LLM...");
+  const llmStart = Date.now();
+  const llmResult = await convertToMarkdown(html, {
+    ...baseOptions,
+    useLLM: true,
+    llmModelPath: options.llmModelPath,
+    llmTemperature: options.llmTemperature
+      ? parseFloat(options.llmTemperature)
+      : undefined,
+  });
+  const llmTime = Date.now() - llmStart;
+  console.log(`      Done in ${llmTime}ms`);
+
+  // Print comparison table
+  console.log(`\n${"=".repeat(50)}`);
+  console.log("\nComparison Results");
+  console.log("-".repeat(50));
+  console.log(
+    `| ${"Method".padEnd(12)} | ${"Time".padEnd(10)} | ${"Output Size".padEnd(12)} |`,
+  );
+  console.log(`| ${"-".repeat(12)} | ${"-".repeat(10)} | ${"-".repeat(12)} |`);
+  console.log(
+    `| ${"Turndown".padEnd(12)} | ${formatTime(turndownTime).padEnd(10)} | ${formatBytes(turndownResult.stats.outputLength).padEnd(12)} |`,
+  );
+  console.log(
+    `| ${"LLM".padEnd(12)} | ${formatTime(llmTime).padEnd(10)} | ${formatBytes(llmResult.stats.outputLength).padEnd(12)} |`,
+  );
+  console.log("-".repeat(50));
+
+  // Speed comparison
+  const speedRatio = llmTime / turndownTime;
+  console.log(`\nSpeed: LLM is ${speedRatio.toFixed(1)}x slower than Turndown`);
+
+  // Size comparison
+  const sizeDiff =
+    llmResult.stats.outputLength - turndownResult.stats.outputLength;
+  const sizePercent = (
+    (sizeDiff / turndownResult.stats.outputLength) *
+    100
+  ).toFixed(1);
+  if (sizeDiff > 0) {
+    console.log(
+      `Size: LLM output is ${formatBytes(sizeDiff)} larger (+${sizePercent}%)`,
+    );
+  } else if (sizeDiff < 0) {
+    console.log(
+      `Size: LLM output is ${formatBytes(Math.abs(sizeDiff))} smaller (${sizePercent}%)`,
+    );
+  } else {
+    console.log("Size: Outputs are the same size");
+  }
+
+  // Write outputs if requested
+  if (options.output) {
+    const baseName = options.output.replace(/\.md$/, "");
+    const turndownFile = `${baseName}.turndown.md`;
+    const llmFile = `${baseName}.llm.md`;
+
+    await fs.writeFile(turndownFile, turndownResult.markdown, "utf-8");
+    await fs.writeFile(llmFile, llmResult.markdown, "utf-8");
+
+    console.log(`\nOutputs written to:`);
+    console.log(`  - ${turndownFile}`);
+    console.log(`  - ${llmFile}`);
+  } else {
+    console.log("\nTip: Use -o <file> to save outputs for detailed comparison");
+  }
+}
+
+function formatTime(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(2)}s`;
+}
+
+function handleShowConfig(configPath?: string): void {
+  const configFile = configPath || findConfigPath();
+
+  console.log("\nConfiguration");
+  console.log("=============");
+
+  if (configFile) {
+    console.log(`Config file: ${configFile}`);
+  } else {
+    console.log("Config file: None found");
+    console.log("\nSupported config file names:");
+    console.log("  - .getmdrc");
+    console.log("  - .getmdrc.json");
+    console.log("  - get-md.config.json");
+    console.log("  - getmd.config.json");
+    console.log("\nSearch locations:");
+    console.log("  1. Current working directory");
+    console.log("  2. Home directory (~/)");
+    return;
+  }
+
+  try {
+    const config = loadConfig();
+    console.log("\nLoaded configuration:");
+    console.log(JSON.stringify(config, null, 2));
+  } catch (error) {
+    console.error(
+      `\nError loading config: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }
 
