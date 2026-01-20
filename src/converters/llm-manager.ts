@@ -13,33 +13,35 @@ import type {
 } from "../types.js";
 
 // Model configuration
+// Using mradermacher's public mirror since jinaai's repo requires authentication
 const MODEL_CONFIG = {
   name: "ReaderLM-v2-Q4_K_M",
-  huggingFaceRepo: "jinaai/ReaderLM-v2-GGUF",
-  fileName: "ReaderLM-v2-Q4_K_M.gguf",
-  size: 986 * 1024 * 1024, // 986MB in bytes
+  huggingFaceRepo: "mradermacher/ReaderLM-v2-GGUF",
+  fileName: "ReaderLM-v2.Q4_K_M.gguf",
+  size: 1120 * 1024 * 1024, // ~1.12GB in bytes
   quantization: "Q4_K_M",
   ramRequired: "2-4GB",
   version: "2.0",
 } as const;
 
 // Available model variants for future use
+// Sizes from mradermacher/ReaderLM-v2-GGUF public mirror
 const MODEL_VARIANTS: LLMModelVariant[] = [
   {
     name: "ReaderLM-v2-Q2_K",
-    size: 500 * 1024 * 1024,
+    size: 753 * 1024 * 1024, // 753MB
     quantization: "Q2_K",
     ramRequired: "1-2GB",
   },
   {
     name: "ReaderLM-v2-Q4_K_M",
-    size: 986 * 1024 * 1024,
+    size: 1120 * 1024 * 1024, // 1.12GB
     quantization: "Q4_K_M",
     ramRequired: "2-4GB",
   },
   {
     name: "ReaderLM-v2-Q8_0",
-    size: 1600 * 1024 * 1024,
+    size: 1890 * 1024 * 1024, // 1.89GB
     quantization: "Q8_0",
     ramRequired: "3-5GB",
   },

@@ -46,6 +46,22 @@ export interface LLMModelLoadingEvent {
   modelName: string;
 }
 
+/** Event emitted when llama.cpp initialization starts */
+export interface LLMInitStartEvent {
+  type: "llama-init-start";
+}
+
+/** Event emitted when llama.cpp initialization completes */
+export interface LLMInitCompleteEvent {
+  type: "llama-init-complete";
+}
+
+/** Event emitted when model file is being loaded */
+export interface LLMModelFileLoadingEvent {
+  type: "model-file-loading";
+  path: string;
+}
+
 /** Event emitted when model has loaded */
 export interface LLMModelLoadedEvent {
   type: "model-loaded";
@@ -91,6 +107,9 @@ export type LLMEvent =
   | LLMDownloadCompleteEvent
   | LLMDownloadErrorEvent
   | LLMModelLoadingEvent
+  | LLMInitStartEvent
+  | LLMInitCompleteEvent
+  | LLMModelFileLoadingEvent
   | LLMModelLoadedEvent
   | LLMConversionStartEvent
   | LLMConversionProgressEvent

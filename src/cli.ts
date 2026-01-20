@@ -182,8 +182,12 @@ async function handleMarkdownConversion(
     llmTemperature: options.llmTemperature
       ? parseFloat(options.llmTemperature)
       : undefined,
-    // Event callbacks for CLI feedback
-    onLLMEvent: options.verbose ? createLLMEventHandler() : undefined,
+    // Event callbacks for CLI feedback - always show progress for LLM since it can be slow
+    onLLMEvent: options.useLlm
+      ? options.verbose
+        ? createLLMEventHandler()
+        : createMinimalLLMEventHandler()
+      : undefined,
   };
 
   // Merge config with CLI options (CLI takes precedence)
@@ -211,16 +215,7 @@ async function handleMarkdownConversion(
     }
   }
 
-  // Show spinner for LLM conversion
-  if (conversionOptions.useLLM && process.stdout.isTTY) {
-    process.stderr.write("Converting with LLM... ");
-  }
-
   const result = await convertToMarkdown(html, conversionOptions);
-
-  if (conversionOptions.useLLM && process.stdout.isTTY) {
-    process.stderr.write("done!\n");
-  }
 
   // Write output
   if (options.output) {
@@ -280,7 +275,7 @@ async function handleDownloadModel(): Promise<void> {
   // Create progress bar
   const progressBar = new SingleBar(
     {
-      format: "Progress |{bar}| {percentage}% | {downloaded}/{total}",
+      format: "Progress |{bar}| {percentage}% | {downloaded}/{totalSize}",
       hideCursor: true,
     },
     Presets.shades_classic,
@@ -294,13 +289,13 @@ async function handleDownloadModel(): Promise<void> {
         if (!started) {
           progressBar.start(100, 0, {
             downloaded: formatBytes(downloaded),
-            total: formatBytes(total),
+            totalSize: formatBytes(total),
           });
           started = true;
         }
         progressBar.update(Math.round(percentage), {
           downloaded: formatBytes(downloaded),
-          total: formatBytes(total),
+          totalSize: formatBytes(total),
         });
       },
     });
@@ -522,6 +517,42 @@ async function promptYesNo(question: string): Promise<boolean> {
   });
 }
 
+function createMinimalLLMEventHandler(): (event: LLMEvent) => void {
+  return (event: LLMEvent) => {
+    // Show minimal progress for LLM operations without verbose mode
+    if (process.stdout.isTTY) {
+      switch (event.type) {
+        case "llama-init-start":
+          process.stderr.write(
+            "Initializing LLM (may take a few minutes on first run)... ",
+          );
+          break;
+        case "llama-init-complete":
+          process.stderr.write("done\n");
+          break;
+        case "model-file-loading":
+          process.stderr.write("Loading model... ");
+          break;
+        case "model-loaded":
+          process.stderr.write("done\n");
+          break;
+        case "conversion-start":
+          process.stderr.write("Converting... ");
+          break;
+        case "conversion-complete":
+          process.stderr.write("done\n");
+          break;
+        case "fallback-start":
+          process.stderr.write(`Falling back to Turndown: ${event.reason}\n`);
+          break;
+        case "conversion-error":
+          process.stderr.write(`Error: ${event.error.message}\n`);
+          break;
+      }
+    }
+  };
+}
+
 function createLLMEventHandler(): (event: LLMEvent) => void {
   return (event: LLMEvent) => {
     switch (event.type) {
@@ -535,10 +566,21 @@ function createLLMEventHandler(): (event: LLMEvent) => void {
         }
         break;
       case "model-loading":
-        process.stderr.write(`Loading ${event.modelName}... `);
+        process.stderr.write(`Loading ${event.modelName}...\n`);
+        break;
+      case "llama-init-start":
+        process.stderr.write(
+          "  Initializing llama.cpp (may take a few minutes on first run)... ",
+        );
+        break;
+      case "llama-init-complete":
+        process.stderr.write("done\n");
+        break;
+      case "model-file-loading":
+        process.stderr.write("  Loading model file... ");
         break;
       case "model-loaded":
-        process.stderr.write(`done (${event.loadTime}ms)\n`);
+        process.stderr.write(`done (${event.loadTime}ms total)\n`);
         break;
       case "conversion-start":
         process.stderr.write(

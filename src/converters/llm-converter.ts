@@ -3,15 +3,15 @@
 import {
   getLlama,
   type Llama,
-  LlamaCompletion,
+  LlamaChatSession,
   type LlamaContext,
   type LlamaModel,
 } from "node-llama-cpp";
 import type { LLMEventCallback } from "../types.js";
 
 // Default conversion parameters
-const DEFAULT_TEMPERATURE = 0.1;
-const DEFAULT_MAX_TOKENS = 512000;
+const DEFAULT_TEMPERATURE = 0;
+const DEFAULT_MAX_TOKENS = 4096;
 
 /**
  * LLM Converter - handles HTML to Markdown conversion using a local LLM
@@ -61,10 +61,20 @@ export class LLMConverter {
     });
 
     try {
-      // Initialize llama.cpp
+      // Initialize llama.cpp (may compile binaries on first run - can take minutes)
+      await this.emit({
+        type: "llama-init-start",
+      });
       this.llama = await getLlama();
+      await this.emit({
+        type: "llama-init-complete",
+      });
 
-      // Load the model
+      // Load the model into memory
+      await this.emit({
+        type: "model-file-loading",
+        path: this.modelPath,
+      });
       this.model = await this.llama.loadModel({
         modelPath: this.modelPath,
       });
@@ -112,12 +122,28 @@ export class LLMConverter {
   }
 
   /**
+   * Clean up the LLM output by removing markdown code block wrappers
+   */
+  private cleanupOutput(output: string): string {
+    let cleaned = output.trim();
+
+    // Remove markdown code block wrapper if present
+    // Matches ```markdown, ```md, or just ```
+    const codeBlockMatch = cleaned.match(
+      /^```(?:markdown|md)?\s*\n([\s\S]*?)\n```\s*$/,
+    );
+    if (codeBlockMatch) {
+      cleaned = codeBlockMatch[1];
+    }
+
+    return cleaned.trim();
+  }
+
+  /**
    * Convert HTML to Markdown using the LLM
    *
-   * ReaderLM-v2 uses a specific prompt format:
-   * <|html|>{html_content}<|md|>
-   *
-   * The model then generates the markdown output.
+   * ReaderLM-v2 is built on Qwen2.5-1.5B-Instruction and uses a chat format.
+   * The prompt follows the format from the official examples.
    */
   async convert(html: string): Promise<string> {
     if (!this.model || !this.context) {
@@ -132,18 +158,22 @@ export class LLMConverter {
     });
 
     try {
-      // Create the prompt using ReaderLM-v2's format
-      const prompt = `<|html|>${html}<|md|>`;
-
-      // Create completion instance
-      const completion = new LlamaCompletion({
+      // Create chat session for proper Qwen2.5 chat template handling
+      const session = new LlamaChatSession({
         contextSequence: this.context.getSequence(),
       });
 
+      // Create the prompt using ReaderLM-v2's format
+      // Based on the official example: instruction + html in code block
+      const prompt = `Extract the main content from the given HTML and convert it to Markdown format.
+\`\`\`html
+${html}
+\`\`\``;
+
       let tokensProcessed = 0;
 
-      // Generate the markdown
-      const result = await completion.generateCompletion(prompt, {
+      // Generate the markdown using chat
+      const rawResult = await session.prompt(prompt, {
         temperature: this.temperature,
         maxTokens: this.maxTokens,
         onTextChunk: () => {
@@ -157,6 +187,9 @@ export class LLMConverter {
           }
         },
       });
+
+      // Clean up the result - remove markdown code block wrapper if present
+      const result = this.cleanupOutput(rawResult);
 
       const duration = Date.now() - startTime;
 
