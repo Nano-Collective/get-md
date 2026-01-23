@@ -1,3 +1,42 @@
+# 1.1.0-beta.1
+
+- Added optional LLM-powered HTML to Markdown conversion using ReaderLM-v2
+    - New `useLLM` option for SDK and `--use-llm` flag for CLI
+    - Local inference via GGUF model (~986MB download)
+    - Supports up to 512,000 tokens with 29 languages
+    - Automatic fallback to Turndown on errors
+
+- Added LLM model management
+    - `checkLLMModel()` - Check if model is downloaded
+    - `downloadLLMModel()` - Download with progress tracking
+    - `removeLLMModel()` - Remove the downloaded model
+    - `getLLMModelInfo()` - Get model information and variants
+
+- Added CLI model management commands
+    - `--model-info` - Show model status and information
+    - `--download-model` - Pre-download the model
+    - `--remove-model` - Remove downloaded model
+    - `--model-path` - Show default model directory
+
+- Added configuration file support
+    - Support for `.getmdrc` or `get-md.config.json`
+    - `--show-config` to display current configuration
+    - CLI flags override config file settings
+
+- Added comparison mode
+    - `--compare` flag to run both Turndown and LLM side-by-side
+    - Shows timing and output size statistics
+
+- Added event callbacks for LLM operations
+    - `onLLMEvent` callback for all LLM events
+    - Progress tracking for downloads and conversions
+
+- Updated release workflow to support beta/alpha/rc versions
+    - Beta versions publish to npm with `beta` tag
+    - GitHub releases marked as prerelease for beta versions
+
+If there are any problems, feedback or thoughts please drop an issue or message us through Discord! Thank you for using get-md.
+
 # 1.0.3
 
 - Added React Native support
