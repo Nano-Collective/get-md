@@ -408,13 +408,17 @@ test("CLI: accepts --llm-model-path flag", async (t) => {
   t.true(stdout.includes("<path>"));
 });
 
-test("CLI: --remove-model handles missing model gracefully", async (t) => {
-  // In non-interactive mode, this should just report "No model installed"
+test("CLI: --remove-model handles non-interactive mode gracefully", async (t) => {
+  // In non-interactive mode:
+  // - If no model: prints "No model installed."
+  // - If model exists: prints "Cancelled." (since prompt defaults to no)
   const { stdout, exitCode } = await runCli(["--remove-model"]);
 
-  // Should succeed (no error) and indicate no model
+  // Should succeed (no error) in either case
   t.is(exitCode, 0);
-  t.true(stdout.includes("No model installed"));
+  t.true(
+    stdout.includes("No model installed.") || stdout.includes("Cancelled."),
+  );
 });
 
 // ============================================================================

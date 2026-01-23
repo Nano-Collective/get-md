@@ -84,7 +84,11 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "node-llama-cpp"
-    ]
+    ],
+    "overrides": {
+      "tar": ">=7.5.4",
+      "lodash": ">=4.17.23"
+    }
   },
   "ava": {
     "extensions": {
