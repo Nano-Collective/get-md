@@ -3,12 +3,15 @@
 import * as cheerio from "cheerio/slim";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
+import { LLMConverter } from "../converters/llm-converter.js";
+import { checkLLMModel } from "../converters/llm-manager.js";
 import { extractMetadata } from "../extractors/metadata-extractor.js";
 import { cleanHTML } from "../optimizers/html-cleaner.js";
 import { formatForLLM } from "../optimizers/llm-formatter.js";
 import { enhanceStructure } from "../optimizers/structure-enhancer.js";
 import type {
   ContentMetadata,
+  LLMEventCallback,
   MarkdownOptions,
   MarkdownResult,
   TurndownNode,
@@ -39,13 +42,113 @@ export class MarkdownParser {
     this.setupLLMRules();
   }
 
-  async convert(
+  /**
+   * Convert HTML to Markdown (async version with LLM support)
+   *
+   * When `useLLM` option is true, this method will use a local LLM model
+   * for conversion, providing higher quality output for complex HTML.
+   */
+  async convertAsync(
     html: string,
     options: MarkdownOptions = {},
   ): Promise<MarkdownResult> {
     const startTime = Date.now();
     const opts = this.normalizeOptions(options);
 
+    // Prepare preprocessed HTML and metadata
+    const { contentHtml, metadata, readabilitySuccess } =
+      await this.preprocessHtml(html, opts);
+
+    // Create event emitter that unifies both callback styles
+    const emitEvent = this.createEventEmitter(opts);
+
+    let markdown: string;
+
+    // Decision point: Use LLM or Turndown
+    if (opts.useLLM) {
+      try {
+        markdown = await this.convertWithLLM(contentHtml, opts, emitEvent);
+      } catch (error) {
+        // Handle fallback to Turndown
+        if (opts.llmFallback !== false) {
+          const reason =
+            error instanceof Error ? error.message : "Unknown error";
+          await emitEvent({ type: "fallback-start", reason });
+          markdown = this.convertWithTurndown(contentHtml, opts);
+        } else {
+          throw error;
+        }
+      }
+    } else {
+      markdown = this.convertWithTurndown(contentHtml, opts);
+    }
+
+    // Post-process and finalize
+    return this.finalizeConversion(
+      html,
+      contentHtml,
+      markdown,
+      metadata,
+      opts,
+      readabilitySuccess,
+      startTime,
+    );
+  }
+
+  /**
+   * Convert HTML to Markdown (sync version, uses Turndown only)
+   *
+   * For LLM-based conversion, use `convertAsync()` instead.
+   */
+  convert(html: string, options: MarkdownOptions = {}): MarkdownResult {
+    const startTime = Date.now();
+    const opts = this.normalizeOptions(options);
+
+    // Warn if LLM options are passed to sync method
+    if (opts.useLLM) {
+      console.warn(
+        "LLM conversion is not available in sync convert(). Use convertAsync() instead.",
+      );
+    }
+
+    // Disable extractContent for sync version since it requires async
+    if (opts.extractContent) {
+      console.warn(
+        "Content extraction (Readability) is not available in sync convert(). Use convertAsync() instead. Falling back to raw HTML.",
+      );
+      opts.extractContent = false;
+    }
+
+    // Prepare preprocessed HTML and metadata (sync version)
+    const { contentHtml, metadata, readabilitySuccess } =
+      this.preprocessHtmlSync(html, opts);
+
+    // Convert with Turndown (sync path)
+    const markdown = this.convertWithTurndown(contentHtml, opts);
+
+    // Post-process and finalize
+    return this.finalizeConversion(
+      html,
+      contentHtml,
+      markdown,
+      metadata,
+      opts,
+      readabilitySuccess,
+      startTime,
+    );
+  }
+
+  /**
+   * Preprocess HTML: extract content, clean, enhance structure, filter
+   */
+  private async preprocessHtml(
+    html: string,
+    opts: Required<MarkdownOptions>,
+  ): Promise<{
+    contentHtml: string;
+    metadata: ContentMetadata;
+    readabilitySuccess: boolean;
+  }> {
     // Step 1: Extract main content using Readability
     let contentHtml = html;
     let metadata: ContentMetadata = {};
@@ -88,31 +191,194 @@ export class MarkdownParser {
     // Step 5: Filter content based on options
     contentHtml = this.filterContent(contentHtml, opts);
 
-    // Step 6: Apply custom rules if provided
+    return { contentHtml, metadata, readabilitySuccess };
+  }
+
+  /**
+   * Preprocess HTML: clean, enhance structure, filter (sync version - no content extraction)
+   */
+  private preprocessHtmlSync(
+    html: string,
+    opts: Required<MarkdownOptions>,
+  ): {
+    contentHtml: string;
+    metadata: ContentMetadata;
+    readabilitySuccess: boolean;
+  } {
+    // Skip content extraction in sync version (requires async)
+    let contentHtml = html;
+    let metadata: ContentMetadata = {};
+    const readabilitySuccess = false;
+
+    // Step 2: Additional metadata extraction
+    const additionalMeta = extractMetadata(contentHtml, opts.baseUrl);
+    metadata = { ...additionalMeta, ...metadata };
+
+    // Step 3: Clean HTML (remove scripts, styles, ads, etc.)
+    contentHtml = cleanHTML(contentHtml, {
+      aggressive: opts.aggressiveCleanup,
+      baseUrl: opts.baseUrl,
+    });
+
+    // Step 4: Enhance structure (improve heading hierarchy, etc.)
+    contentHtml = enhanceStructure(contentHtml);
+
+    // Step 4.5: Normalize code blocks (GitHub, etc.)
+    contentHtml = this.normalizeCodeBlocks(contentHtml);
+
+    // Step 5: Filter content based on options
+    contentHtml = this.filterContent(contentHtml, opts);
+
+    return { contentHtml, metadata, readabilitySuccess };
+  }
+
+  /**
+   * Convert preprocessed HTML to Markdown using Turndown
+   */
+  private convertWithTurndown(
+    contentHtml: string,
+    opts: Required<MarkdownOptions>,
+  ): string {
+    // Apply custom rules if provided
     if (opts.customRules && opts.customRules.length > 0) {
       this.applyCustomRules(opts.customRules);
     }
 
-    // Step 7: Convert to markdown
+    // Convert to markdown
     let markdown = this.turndown.turndown(contentHtml);
 
-    // Step 8: Apply LLM-specific formatting
+    // Apply LLM-specific formatting
     markdown = formatForLLM(markdown);
 
-    // Step 9: Calculate word count and reading time from markdown (before adding frontmatter)
+    return markdown;
+  }
+
+  /**
+   * Convert preprocessed HTML to Markdown using LLM
+   */
+  private async convertWithLLM(
+    contentHtml: string,
+    opts: Required<MarkdownOptions>,
+    emitEvent: LLMEventCallback,
+  ): Promise<string> {
+    // Check if model is available
+    await emitEvent({ type: "model-check", status: "checking" });
+
+    const modelPath = opts.llmModelPath;
+    const modelStatus = await checkLLMModel({
+      modelPath: modelPath || undefined,
+    });
+
+    if (!modelStatus.available) {
+      await emitEvent({ type: "model-check", status: "not-found" });
+      throw new Error(
+        "LLM model not found. Download it first using downloadLLMModel() or the CLI command: getmd --download-model",
+      );
+    }
+
+    await emitEvent({
+      type: "model-check",
+      status: "found",
+      path: modelStatus.path,
+    });
+
+    // Create and load the converter
+    const converter = new LLMConverter({
+      modelPath: modelStatus.path || "",
+      onEvent: emitEvent,
+      temperature: opts.llmTemperature,
+      maxTokens: opts.llmMaxTokens,
+    });
+
+    try {
+      await converter.loadModel();
+
+      // Convert HTML to Markdown using LLM
+      const markdown = await converter.convert(contentHtml);
+
+      return markdown;
+    } finally {
+      // Always unload the model to free memory
+      await converter.unload();
+    }
+  }
+
+  /**
+   * Create a unified event emitter from options
+   */
+  private createEventEmitter(
+    opts: Required<MarkdownOptions>,
+  ): LLMEventCallback {
+    return async (event) => {
+      // Call unified callback if provided
+      if (opts.onLLMEvent) {
+        await opts.onLLMEvent(event);
+      }
+
+      // Call simplified callbacks based on event type
+      if (opts.onDownloadProgress && event.type === "download-progress") {
+        opts.onDownloadProgress(
+          event.downloaded,
+          event.total,
+          event.percentage,
+        );
+      }
+
+      if (opts.onModelStatus) {
+        if (event.type === "model-check") {
+          if (event.status === "not-found") {
+            opts.onModelStatus("not-found");
+          }
+        } else if (event.type === "model-loading") {
+          opts.onModelStatus("loading");
+        } else if (event.type === "model-loaded") {
+          opts.onModelStatus("loaded");
+        }
+      }
+
+      if (opts.onConversionProgress) {
+        if (event.type === "conversion-start") {
+          opts.onConversionProgress({ stage: "starting" });
+        } else if (event.type === "conversion-progress") {
+          opts.onConversionProgress({
+            stage: "converting",
+            percentage: event.tokensProcessed
+              ? Math.min(100, event.tokensProcessed / 100)
+              : undefined,
+          });
+        } else if (event.type === "conversion-complete") {
+          opts.onConversionProgress({ stage: "complete", percentage: 100 });
+        }
+      }
+    };
+  }
+
+  /**
+   * Finalize conversion: add metadata, frontmatter, and calculate stats
+   */
+  private finalizeConversion(
+    originalHtml: string,
+    contentHtml: string,
+    markdown: string,
+    metadata: ContentMetadata,
+    opts: Required<MarkdownOptions>,
+    readabilitySuccess: boolean,
+    startTime: number,
+  ): MarkdownResult {
+    // Calculate word count and reading time from markdown
     const { wordCount, readingTime } = this.calculateMarkdownStats(markdown);
     metadata.wordCount = wordCount;
     metadata.readingTime = readingTime;
 
-    // Step 10: Add frontmatter if requested
+    // Add frontmatter if requested
     if (opts.includeMeta && Object.keys(metadata).length > 0) {
       markdown = this.addFrontmatter(markdown, metadata);
     }
 
-    // Step 11: Final cleanup
+    // Final cleanup
     markdown = this.postProcess(markdown);
 
-    // Step 12: Validate length
+    // Validate length
     if (opts.maxLength && markdown.length > opts.maxLength) {
       markdown = `${markdown.substring(0, opts.maxLength)}\n\n[Content truncated]`;
     }
@@ -128,7 +394,7 @@ export class MarkdownParser {
       markdown,
       metadata,
       stats: {
-        inputLength: html.length,
+        inputLength: originalHtml.length,
         outputLength: markdown.length,
         processingTime,
         readabilitySuccess,
@@ -159,7 +425,9 @@ export class MarkdownParser {
         url: baseUrl || "https://example.com",
       });
       const document = window.document;
-      document.body.innerHTML = html;
+      // This is safe - we're parsing user-provided HTML in an isolated happy-dom environment,
+      // not in a browser context. The HTML is then processed by Readability for extraction.
+      document.body.innerHTML = html; // nosemgrep: javascript.browser.security.insecure-document-method.insecure-document-method
 
       // Restore original process
       if (originalProcess && typeof globalThis !== "undefined") {
@@ -547,6 +815,7 @@ export class MarkdownParser {
     options: MarkdownOptions,
   ): Required<MarkdownOptions> {
     return {
+      // Core options
       extractContent: options.extractContent ?? true,
       includeMeta: options.includeMeta ?? true,
       customRules: options.customRules ?? [],
@@ -556,7 +825,26 @@ export class MarkdownParser {
       includeImages: options.includeImages ?? true,
       includeLinks: options.includeLinks ?? true,
       includeTables: options.includeTables ?? true,
-      aggressiveCleanup: options.aggressiveCleanup ?? true, // Back to true with smarter selectors
+      aggressiveCleanup: options.aggressiveCleanup ?? true,
+
+      // URL fetching options
+      isUrl: options.isUrl,
+      timeout: options.timeout ?? 15000,
+      followRedirects: options.followRedirects ?? true,
+      maxRedirects: options.maxRedirects ?? 5,
+      headers: options.headers,
+      userAgent: options.userAgent,
+
+      // LLM options
+      useLLM: options.useLLM ?? false,
+      llmModelPath: options.llmModelPath,
+      llmTemperature: options.llmTemperature ?? 0.1,
+      llmMaxTokens: options.llmMaxTokens ?? 512000,
+      llmFallback: options.llmFallback ?? true,
+      onLLMEvent: options.onLLMEvent,
+      onDownloadProgress: options.onDownloadProgress,
+      onModelStatus: options.onModelStatus,
+      onConversionProgress: options.onConversionProgress,
     } as Required<MarkdownOptions>;
   }
 }

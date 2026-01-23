@@ -3,9 +3,22 @@
 // src/cli.ts
 
 import fs from "node:fs/promises";
+import readline from "node:readline";
+import { Presets, SingleBar } from "cli-progress";
 import { Command } from "commander";
-import { convertToMarkdown } from "./index.js";
-import type { MarkdownOptions } from "./types.js";
+import {
+  checkLLMModel,
+  convertToMarkdown,
+  downloadLLMModel,
+  getLLMModelInfo,
+  removeLLMModel,
+} from "./index.js";
+import type { LLMEvent, MarkdownOptions } from "./types.js";
+import {
+  findConfigPath,
+  loadConfig,
+  mergeConfigWithOptions,
+} from "./utils/config-loader.js";
 
 interface CliOptions {
   output?: string;
@@ -17,6 +30,20 @@ interface CliOptions {
   maxLength: string;
   baseUrl?: string;
   verbose?: boolean;
+  // LLM options
+  useLlm?: boolean;
+  llmModelPath?: string;
+  llmTemperature?: string;
+  // Model management
+  downloadModel?: boolean;
+  modelInfo?: boolean;
+  removeModel?: boolean;
+  modelPath?: boolean;
+  // Config
+  config?: string;
+  showConfig?: boolean;
+  // Comparison mode
+  compare?: boolean;
 }
 
 const program = new Command();
@@ -40,10 +67,56 @@ program
   .option("--max-length <n>", "Maximum output length", "1000000")
   .option("--base-url <url>", "Base URL for resolving relative links")
   .option("-v, --verbose", "Verbose output")
+  // LLM options
+  .option("--use-llm", "Use LLM for higher quality HTML to Markdown conversion")
+  .option("--llm-model-path <path>", "Custom path to LLM model file")
+  .option("--llm-temperature <n>", "LLM temperature (default: 0.1)")
+  // Model management commands
+  .option("--download-model", "Download the LLM model")
+  .option("--model-info", "Show LLM model information and status")
+  .option("--remove-model", "Remove the downloaded LLM model")
+  .option("--model-path", "Show default model storage path")
+  // Config options
+  .option("--config <path>", "Path to config file")
+  .option("--show-config", "Show current configuration and exit")
+  // Comparison mode
+  .option("--compare", "Compare Turndown vs LLM conversion side-by-side")
   .action(async (input: string | undefined, options: CliOptions) => {
     try {
+      // Handle model management commands first
+      if (options.modelInfo) {
+        await handleModelInfo();
+        return;
+      }
+
+      if (options.downloadModel) {
+        await handleDownloadModel();
+        return;
+      }
+
+      if (options.removeModel) {
+        await handleRemoveModel();
+        return;
+      }
+
+      if (options.modelPath) {
+        handleModelPath();
+        return;
+      }
+
+      if (options.showConfig) {
+        handleShowConfig(options.config);
+        return;
+      }
+
       // Get input HTML
       const html = await getInput(input);
+
+      // Comparison mode
+      if (options.compare) {
+        await handleComparisonMode(html, options);
+        return;
+      }
 
       // Markdown conversion mode
       await handleMarkdownConversion(html, options);
@@ -91,7 +164,11 @@ async function handleMarkdownConversion(
   html: string,
   options: CliOptions,
 ): Promise<void> {
-  const conversionOptions: MarkdownOptions = {
+  // Load config from file(s)
+  const fileConfig = loadConfig();
+
+  // Build options from CLI flags
+  const cliOptions: MarkdownOptions = {
     extractContent: options.extract,
     includeMeta: options.frontmatter,
     includeImages: options.images,
@@ -99,7 +176,44 @@ async function handleMarkdownConversion(
     includeTables: options.tables,
     maxLength: parseInt(options.maxLength, 10),
     baseUrl: options.baseUrl,
+    // LLM options from CLI
+    useLLM: options.useLlm,
+    llmModelPath: options.llmModelPath,
+    llmTemperature: options.llmTemperature
+      ? parseFloat(options.llmTemperature)
+      : undefined,
+    // Event callbacks for CLI feedback - always show progress for LLM since it can be slow
+    onLLMEvent: options.useLlm
+      ? options.verbose
+        ? createLLMEventHandler()
+        : createMinimalLLMEventHandler()
+      : undefined,
   };
+
+  // Merge config with CLI options (CLI takes precedence)
+  const conversionOptions = mergeConfigWithOptions(fileConfig, cliOptions);
+
+  // Check if LLM mode is requested (from config or CLI)
+  if (conversionOptions.useLLM) {
+    // Check if model is available
+    const status = await checkLLMModel({
+      modelPath: conversionOptions.llmModelPath,
+    });
+
+    if (!status.available) {
+      // Prompt user to download
+      const shouldDownload = await promptYesNo(
+        "LLM model not found. Download ReaderLM-v2 (986MB)?",
+      );
+
+      if (shouldDownload) {
+        await handleDownloadModel();
+      } else {
+        console.error("LLM mode requires the model. Falling back to Turndown.");
+        conversionOptions.useLLM = false;
+      }
+    }
+  }
 
   const result = await convertToMarkdown(html, conversionOptions);
 
@@ -117,6 +231,373 @@ async function handleMarkdownConversion(
   } else {
     console.log(result.markdown);
   }
+}
+
+// ============================================================================
+// Model Management Commands
+// ============================================================================
+
+async function handleModelInfo(): Promise<void> {
+  const info = getLLMModelInfo();
+  const status = await checkLLMModel();
+
+  console.log("\nLLM Model Information");
+  console.log("=====================");
+  console.log(`Recommended model: ${info.recommendedModel}`);
+  console.log(`Default path: ${info.defaultPath}`);
+  console.log(`Status: ${status.available ? "Installed" : "Not installed"}`);
+
+  if (status.available) {
+    console.log(`Size: ${status.sizeFormatted}`);
+  }
+
+  console.log("\nAvailable variants:");
+  for (const variant of info.availableModels) {
+    const marker =
+      variant.name === info.recommendedModel ? " (recommended)" : "";
+    console.log(`  - ${variant.name}${marker}`);
+    console.log(`    Size: ${Math.round(variant.size / (1024 * 1024))}MB`);
+    console.log(`    RAM required: ${variant.ramRequired}`);
+  }
+}
+
+async function handleDownloadModel(): Promise<void> {
+  const status = await checkLLMModel();
+
+  if (status.available) {
+    console.log(`Model already installed at: ${status.path}`);
+    console.log(`Size: ${status.sizeFormatted}`);
+    return;
+  }
+
+  console.log("Downloading ReaderLM-v2 model...\n");
+
+  // Create progress bar
+  const progressBar = new SingleBar(
+    {
+      format: "Progress |{bar}| {percentage}% | {downloaded}/{totalSize}",
+      hideCursor: true,
+    },
+    Presets.shades_classic,
+  );
+
+  let started = false;
+
+  try {
+    const path = await downloadLLMModel({
+      onProgress: (downloaded, total, percentage) => {
+        if (!started) {
+          progressBar.start(100, 0, {
+            downloaded: formatBytes(downloaded),
+            totalSize: formatBytes(total),
+          });
+          started = true;
+        }
+        progressBar.update(Math.round(percentage), {
+          downloaded: formatBytes(downloaded),
+          totalSize: formatBytes(total),
+        });
+      },
+    });
+
+    progressBar.stop();
+    console.log(`\n✓ Model downloaded successfully to: ${path}`);
+  } catch (error) {
+    progressBar.stop();
+    throw error;
+  }
+}
+
+async function handleRemoveModel(): Promise<void> {
+  const status = await checkLLMModel();
+
+  if (!status.available) {
+    console.log("No model installed.");
+    return;
+  }
+
+  const confirm = await promptYesNo(
+    `Remove model at ${status.path}? (${status.sizeFormatted})`,
+  );
+
+  if (confirm) {
+    await removeLLMModel();
+    console.log("✓ Model removed successfully.");
+  } else {
+    console.log("Cancelled.");
+  }
+}
+
+function handleModelPath(): void {
+  const info = getLLMModelInfo();
+  console.log(info.defaultPath);
+}
+
+async function handleComparisonMode(
+  html: string,
+  options: CliOptions,
+): Promise<void> {
+  // Check if LLM model is available
+  const status = await checkLLMModel({
+    modelPath: options.llmModelPath,
+  });
+
+  if (!status.available) {
+    const shouldDownload = await promptYesNo(
+      "LLM model not found. Download ReaderLM-v2 (986MB) to run comparison?",
+    );
+
+    if (shouldDownload) {
+      await handleDownloadModel();
+    } else {
+      console.error("Cannot run comparison without LLM model.");
+      process.exit(1);
+    }
+  }
+
+  console.log("\nRunning comparison: Turndown vs LLM\n");
+  console.log("=".repeat(50));
+
+  // Common options
+  const baseOptions: MarkdownOptions = {
+    extractContent: options.extract,
+    includeMeta: options.frontmatter,
+    includeImages: options.images,
+    includeLinks: options.links,
+    includeTables: options.tables,
+    maxLength: parseInt(options.maxLength, 10),
+    baseUrl: options.baseUrl,
+  };
+
+  // Run Turndown conversion
+  console.log("\n[1/2] Converting with Turndown...");
+  const turndownStart = Date.now();
+  const turndownResult = await convertToMarkdown(html, {
+    ...baseOptions,
+    useLLM: false,
+  });
+  const turndownTime = Date.now() - turndownStart;
+  console.log(`      Done in ${turndownTime}ms`);
+
+  // Run LLM conversion
+  console.log("\n[2/2] Converting with LLM...");
+  const llmStart = Date.now();
+  const llmResult = await convertToMarkdown(html, {
+    ...baseOptions,
+    useLLM: true,
+    llmModelPath: options.llmModelPath,
+    llmTemperature: options.llmTemperature
+      ? parseFloat(options.llmTemperature)
+      : undefined,
+  });
+  const llmTime = Date.now() - llmStart;
+  console.log(`      Done in ${llmTime}ms`);
+
+  // Print comparison table
+  console.log(`\n${"=".repeat(50)}`);
+  console.log("\nComparison Results");
+  console.log("-".repeat(50));
+  console.log(
+    `| ${"Method".padEnd(12)} | ${"Time".padEnd(10)} | ${"Output Size".padEnd(12)} |`,
+  );
+  console.log(`| ${"-".repeat(12)} | ${"-".repeat(10)} | ${"-".repeat(12)} |`);
+  console.log(
+    `| ${"Turndown".padEnd(12)} | ${formatTime(turndownTime).padEnd(10)} | ${formatBytes(turndownResult.stats.outputLength).padEnd(12)} |`,
+  );
+  console.log(
+    `| ${"LLM".padEnd(12)} | ${formatTime(llmTime).padEnd(10)} | ${formatBytes(llmResult.stats.outputLength).padEnd(12)} |`,
+  );
+  console.log("-".repeat(50));
+
+  // Speed comparison
+  const speedRatio = llmTime / turndownTime;
+  console.log(`\nSpeed: LLM is ${speedRatio.toFixed(1)}x slower than Turndown`);
+
+  // Size comparison
+  const sizeDiff =
+    llmResult.stats.outputLength - turndownResult.stats.outputLength;
+  const sizePercent = (
+    (sizeDiff / turndownResult.stats.outputLength) *
+    100
+  ).toFixed(1);
+  if (sizeDiff > 0) {
+    console.log(
+      `Size: LLM output is ${formatBytes(sizeDiff)} larger (+${sizePercent}%)`,
+    );
+  } else if (sizeDiff < 0) {
+    console.log(
+      `Size: LLM output is ${formatBytes(Math.abs(sizeDiff))} smaller (${sizePercent}%)`,
+    );
+  } else {
+    console.log("Size: Outputs are the same size");
+  }
+
+  // Write outputs if requested
+  if (options.output) {
+    const baseName = options.output.replace(/\.md$/, "");
+    const turndownFile = `${baseName}.turndown.md`;
+    const llmFile = `${baseName}.llm.md`;
+
+    await fs.writeFile(turndownFile, turndownResult.markdown, "utf-8");
+    await fs.writeFile(llmFile, llmResult.markdown, "utf-8");
+
+    console.log(`\nOutputs written to:`);
+    console.log(`  - ${turndownFile}`);
+    console.log(`  - ${llmFile}`);
+  } else {
+    console.log("\nTip: Use -o <file> to save outputs for detailed comparison");
+  }
+}
+
+function formatTime(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(2)}s`;
+}
+
+function handleShowConfig(configPath?: string): void {
+  const configFile = configPath || findConfigPath();
+
+  console.log("\nConfiguration");
+  console.log("=============");
+
+  if (configFile) {
+    console.log(`Config file: ${configFile}`);
+  } else {
+    console.log("Config file: None found");
+    console.log("\nSupported config file names:");
+    console.log("  - .getmdrc");
+    console.log("  - .getmdrc.json");
+    console.log("  - get-md.config.json");
+    console.log("  - getmd.config.json");
+    console.log("\nSearch locations:");
+    console.log("  1. Current working directory");
+    console.log("  2. Home directory (~/)");
+    return;
+  }
+
+  try {
+    const config = loadConfig();
+    console.log("\nLoaded configuration:");
+    console.log(JSON.stringify(config, null, 2));
+  } catch (error) {
+    console.error(
+      `\nError loading config: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / (1024 * 1024)).toFixed(0)}MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)}GB`;
+}
+
+async function promptYesNo(question: string): Promise<boolean> {
+  // Non-interactive mode - default to no
+  if (!process.stdin.isTTY) {
+    return false;
+  }
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stderr,
+  });
+
+  return new Promise((resolve) => {
+    rl.question(`${question} (y/N) `, (answer) => {
+      rl.close();
+      resolve(answer.toLowerCase() === "y" || answer.toLowerCase() === "yes");
+    });
+  });
+}
+
+function createMinimalLLMEventHandler(): (event: LLMEvent) => void {
+  return (event: LLMEvent) => {
+    // Show minimal progress for LLM operations without verbose mode
+    if (process.stdout.isTTY) {
+      switch (event.type) {
+        case "llama-init-start":
+          process.stderr.write(
+            "Initializing LLM (may take a few minutes on first run)... ",
+          );
+          break;
+        case "llama-init-complete":
+          process.stderr.write("done\n");
+          break;
+        case "model-file-loading":
+          process.stderr.write("Loading model... ");
+          break;
+        case "model-loaded":
+          process.stderr.write("done\n");
+          break;
+        case "conversion-start":
+          process.stderr.write("Converting... ");
+          break;
+        case "conversion-complete":
+          process.stderr.write("done\n");
+          break;
+        case "fallback-start":
+          process.stderr.write(`Falling back to Turndown: ${event.reason}\n`);
+          break;
+        case "conversion-error":
+          process.stderr.write(`Error: ${event.error.message}\n`);
+          break;
+      }
+    }
+  };
+}
+
+function createLLMEventHandler(): (event: LLMEvent) => void {
+  return (event: LLMEvent) => {
+    switch (event.type) {
+      case "model-check":
+        if (event.status === "checking") {
+          process.stderr.write("Checking model... ");
+        } else if (event.status === "found") {
+          process.stderr.write("found\n");
+        } else {
+          process.stderr.write("not found\n");
+        }
+        break;
+      case "model-loading":
+        process.stderr.write(`Loading ${event.modelName}...\n`);
+        break;
+      case "llama-init-start":
+        process.stderr.write(
+          "  Initializing llama.cpp (may take a few minutes on first run)... ",
+        );
+        break;
+      case "llama-init-complete":
+        process.stderr.write("done\n");
+        break;
+      case "model-file-loading":
+        process.stderr.write("  Loading model file... ");
+        break;
+      case "model-loaded":
+        process.stderr.write(`done (${event.loadTime}ms total)\n`);
+        break;
+      case "conversion-start":
+        process.stderr.write(
+          `Converting ${formatBytes(event.inputSize)} of HTML... `,
+        );
+        break;
+      case "conversion-complete":
+        process.stderr.write(`done (${event.duration}ms)\n`);
+        break;
+      case "fallback-start":
+        process.stderr.write(`\nFalling back to Turndown: ${event.reason}\n`);
+        break;
+      case "conversion-error":
+        process.stderr.write(`\nError: ${event.error.message}\n`);
+        break;
+    }
+  };
 }
 
 program.parse();

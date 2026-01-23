@@ -1,0 +1,12 @@
+{
+  "useLLM": true,
+  "llmTemperature": 0.1,
+  "llmFallback": true,
+  "extractContent": true,
+  "includeMeta": true,
+  "includeImages": true,
+  "includeLinks": true,
+  "includeTables": true,
+  "aggressiveCleanup": true,
+  "maxLength": 1000000
+}

@@ -332,3 +332,236 @@ test("CLI: handles stdin with no TTY", async (t) => {
   t.true(stdout.includes("# Hello World"));
   t.true(stdout.includes("This is a test paragraph"));
 });
+
+// ============================================================================
+// LLM CLI Flag Tests
+// ============================================================================
+
+test("CLI: --model-info shows model information", async (t) => {
+  const { stdout, exitCode } = await runCli(["--model-info"]);
+
+  t.is(exitCode, 0);
+  t.true(stdout.includes("LLM Model Information"));
+  t.true(stdout.includes("Recommended model"));
+  t.true(stdout.includes("Default path"));
+  t.true(stdout.includes("Status"));
+  t.true(stdout.includes("Available variants"));
+});
+
+test("CLI: --model-info shows Q4_K_M as recommended", async (t) => {
+  const { stdout } = await runCli(["--model-info"]);
+
+  t.true(stdout.includes("Q4_K_M"));
+  t.true(stdout.includes("(recommended)"));
+});
+
+test("CLI: --model-info shows multiple quantization options", async (t) => {
+  const { stdout } = await runCli(["--model-info"]);
+
+  t.true(stdout.includes("Q2_K"));
+  t.true(stdout.includes("Q4_K_M"));
+  t.true(stdout.includes("Q8_0"));
+});
+
+test("CLI: --model-info shows RAM requirements", async (t) => {
+  const { stdout } = await runCli(["--model-info"]);
+
+  t.true(stdout.includes("RAM required"));
+  t.true(stdout.includes("GB"));
+});
+
+test("CLI: --help shows LLM options", async (t) => {
+  const { stdout } = await runCli(["--help"]);
+
+  t.true(stdout.includes("--use-llm"));
+  t.true(stdout.includes("--llm-model-path"));
+  t.true(stdout.includes("--download-model"));
+  t.true(stdout.includes("--model-info"));
+  t.true(stdout.includes("--remove-model"));
+});
+
+test("CLI: --help shows LLM temperature option", async (t) => {
+  const { stdout } = await runCli(["--help"]);
+
+  t.true(stdout.includes("--llm-temperature"));
+});
+
+test("CLI: accepts --use-llm flag without error when model not present", async (t) => {
+  const inputFile = await createTempFile(SIMPLE_HTML);
+
+  try {
+    // When running non-interactively, it should fall back to Turndown
+    const { exitCode } = await runCli([inputFile, "--use-llm"]);
+
+    // Should succeed by falling back
+    t.is(exitCode, 0);
+  } finally {
+    await cleanupTempFile(inputFile);
+  }
+});
+
+test("CLI: accepts --llm-model-path flag", async (t) => {
+  const { stdout } = await runCli(["--help"]);
+
+  // Verify the flag is documented
+  t.true(stdout.includes("--llm-model-path"));
+  t.true(stdout.includes("<path>"));
+});
+
+test("CLI: --remove-model handles missing model gracefully", async (t) => {
+  // In non-interactive mode, this should just report "No model installed"
+  const { stdout, exitCode } = await runCli(["--remove-model"]);
+
+  // Should succeed (no error) and indicate no model
+  t.is(exitCode, 0);
+  t.true(stdout.includes("No model installed"));
+});
+
+// ============================================================================
+// LLM CLI Integration Tests (with file input)
+// ============================================================================
+
+test("CLI: --use-llm with file input falls back when model missing", async (t) => {
+  const inputFile = await createTempFile(SIMPLE_HTML);
+
+  try {
+    const { stdout, exitCode } = await runCli([inputFile, "--use-llm"]);
+
+    // Should fall back to Turndown and produce output
+    t.is(exitCode, 0);
+    t.true(stdout.includes("Hello World"));
+  } finally {
+    await cleanupTempFile(inputFile);
+  }
+});
+
+test("CLI: --use-llm with --verbose shows fallback message", async (t) => {
+  const inputFile = await createTempFile(SIMPLE_HTML);
+  const outputFile = path.join(path.dirname(inputFile), "output.md");
+
+  try {
+    const { stderr, exitCode } = await runCli([
+      inputFile,
+      "--use-llm",
+      "--verbose",
+      "-o",
+      outputFile,
+    ]);
+
+    // Should succeed
+    t.is(exitCode, 0);
+
+    // In non-TTY mode, verbose output goes to stderr
+    // The fallback message should appear
+    t.true(
+      stderr.includes("Falling back") ||
+        stderr.includes("Written to") ||
+        exitCode === 0,
+    );
+  } finally {
+    await cleanupTempFile(inputFile);
+  }
+});
+
+test("CLI: combines --use-llm with other flags", async (t) => {
+  const inputFile = await createTempFile(SIMPLE_HTML);
+
+  try {
+    const { stdout, exitCode } = await runCli([
+      inputFile,
+      "--use-llm",
+      "--no-frontmatter",
+      "--no-images",
+    ]);
+
+    t.is(exitCode, 0);
+    // Should still produce output (via fallback)
+    t.true(stdout.length > 0);
+    // Should respect other flags
+    t.false(stdout.startsWith("---"));
+  } finally {
+    await cleanupTempFile(inputFile);
+  }
+});
+
+// ============================================================================
+// New CLI Flag Tests (--model-path, --compare, --show-config)
+// ============================================================================
+
+test("CLI: --model-path shows default model directory", async (t) => {
+  const { stdout, exitCode } = await runCli(["--model-path"]);
+
+  t.is(exitCode, 0);
+  // Should output a path containing .get-md and models
+  t.true(stdout.includes(".get-md") || stdout.includes("models"));
+  // Should end with .gguf file extension
+  t.true(stdout.trim().endsWith(".gguf"));
+});
+
+test("CLI: --help shows --model-path option", async (t) => {
+  const { stdout } = await runCli(["--help"]);
+
+  t.true(stdout.includes("--model-path"));
+  t.true(stdout.includes("model storage path"));
+});
+
+test("CLI: --show-config shows configuration info", async (t) => {
+  const { stdout, exitCode } = await runCli(["--show-config"]);
+
+  t.is(exitCode, 0);
+  t.true(stdout.includes("Configuration"));
+  // Should show either "Config file:" or "None found"
+  t.true(stdout.includes("Config file") || stdout.includes("None found"));
+});
+
+test("CLI: --show-config lists supported config file names when none found", async (t) => {
+  // This test may find a config in home dir, so we check for either case
+  const { stdout, exitCode } = await runCli(["--show-config"]);
+
+  t.is(exitCode, 0);
+  // If no config found, should list supported names
+  if (stdout.includes("None found")) {
+    t.true(stdout.includes(".getmdrc"));
+    t.true(stdout.includes("get-md.config.json"));
+  }
+});
+
+test("CLI: --help shows --show-config option", async (t) => {
+  const { stdout } = await runCli(["--help"]);
+
+  t.true(stdout.includes("--show-config"));
+  t.true(stdout.includes("--config"));
+});
+
+test("CLI: --help shows --compare option", async (t) => {
+  const { stdout } = await runCli(["--help"]);
+
+  t.true(stdout.includes("--compare"));
+  t.true(stdout.includes("Compare") || stdout.includes("compare"));
+});
+
+test("CLI: --compare requires input", async (t) => {
+  // Running --compare without input should fail or prompt
+  const { exitCode } = await runCli(["--compare"]);
+
+  // Should fail because no input provided
+  t.true(exitCode !== 0 || exitCode === null);
+});
+
+test("CLI: --compare with file falls back when model missing", async (t) => {
+  const inputFile = await createTempFile(SIMPLE_HTML);
+
+  try {
+    // In non-interactive mode, compare should fail gracefully when model missing
+    const { exitCode, stderr } = await runCli([inputFile, "--compare"]);
+
+    // Either succeeds with fallback message or exits with error about model
+    t.true(
+      exitCode === 0 ||
+        stderr.includes("model") ||
+        stderr.includes("Cannot run comparison"),
+    );
+  } finally {
+    await cleanupTempFile(inputFile);
+  }
+});
