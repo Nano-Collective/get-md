@@ -145,7 +145,7 @@ jobs:
 
             ### Usage
             ```bash
-            get-md
+            getmd
             ```
 
             OR
