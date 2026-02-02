@@ -1,3 +1,7 @@
+# 1.1.1
+
+- Updated docs
+
 # 1.1.0
 
 - Added optional LLM-powered HTML to Markdown conversion using ReaderLM-v2
