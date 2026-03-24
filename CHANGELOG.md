@@ -1,3 +1,7 @@
+# 1.2.0
+
+- Refactored docs so that it works with Nano Collective docs site.
+
 # 1.1.1
 
 - Updated docs

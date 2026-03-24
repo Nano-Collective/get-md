@@ -1,77 +1,45 @@
-# get-md Documentation
+---
+title: "Introduction"
+description: "get-md is a fast, lightweight HTML to Markdown converter optimized for LLM consumption"
+sidebar_order: 1
+---
 
-A fast, lightweight HTML to Markdown converter optimized for LLM consumption. Uses proven parsing libraries to deliver clean, well-structured markdown with intelligent content extraction and noise filtering.
+# get-md
 
-## Features
+get-md is a fast, lightweight HTML to Markdown converter optimized for LLM consumption. Pass in HTML or a URL and get clean, structured Markdown back — as a library or from the command line.
 
-- **Lightning-fast**: Converts HTML to Markdown in <100ms
-- **Intelligent extraction**: Uses Mozilla Readability to extract main content
-- **LLM-optimized**: Consistent formatting perfect for AI consumption
-- **Optional AI conversion**: Higher quality output with local ReaderLM-v2 model
-- **CLI included**: Use from the command line or as a library
-- **TypeScript**: Full type definitions included
-- **Zero downloads**: Works instantly (AI model optional, ~1GB)
-- **Lightweight**: Small package size (~10MB)
-- **React Native compatible**: Full support including content extraction
+## What You Can Do
 
-## Installation
+- **Convert HTML to Markdown** in under 100ms using Turndown and Mozilla Readability
+- **Fetch and convert URLs** with automatic detection and configurable fetching
+- **Extract metadata** including title, author, reading time, and more as YAML frontmatter
+- **Use AI-powered conversion** with a local ReaderLM-v2 model for higher quality output
+- **Filter content** by toggling images, links, tables, and noise removal
 
-```bash
-npm install @nanocollective/get-md
-# or
-pnpm add @nanocollective/get-md
-# or
-yarn add @nanocollective/get-md
-```
+get-md works as both a Node.js library and a CLI tool, with full React Native support.
 
-## Quick Start
+## How It Works
 
 ### As a Library
 
 ```typescript
 import { convertToMarkdown } from "@nanocollective/get-md";
 
-// From HTML string
-const result = await convertToMarkdown("<h1>Hello</h1><p>World</p>");
-console.log(result.markdown);
-
-// From URL (auto-detected)
 const result = await convertToMarkdown("https://example.com");
-console.log(result.metadata.title);
+console.log(result.markdown);
 ```
 
 ### As a CLI
 
 ```bash
-# From stdin
-echo '<h1>Hello</h1>' | getmd
-
-# From URL
-getmd https://example.com
-
-# Save to file
-getmd input.html -o output.md
+getmd https://example.com -o output.md
 ```
 
-## Documentation
+## Next Steps
 
-- [API Reference](api.md) - Full API documentation for `convertToMarkdown()`
-- [CLI Usage](cli.md) - Command-line interface options and examples
-- [LLM-Powered Conversion](llm.md) - Using the optional AI model for higher quality output
-- [React Native Support](react-native.md) - Using get-md in React Native apps
-
-## Why get-md?
-
-### For LLMs
-
-- **Consistent output**: Deterministic markdown formatting helps LLMs learn patterns
-- **Clean structure**: Proper heading hierarchy, list formatting, and spacing
-- **Noise removal**: Automatically removes ads, navigation, footers, etc.
-- **Fast processing**: <100ms per document enables real-time workflows
-
-### vs Other Tools
-
-- **Faster than LLM-based extractors**: No model inference overhead
-- **More reliable**: Deterministic output, no hallucinations
-- **Cheaper**: No API costs
-- **Privacy-friendly**: Runs locally, no data sent to third parties
+- [Installation](getting-started/installation.md) — Requirements and setup
+- [Quick Start](getting-started/quick-start.md) — Convert your first page
+- [API Reference](api/index.md) — Full library API reference
+- [CLI](cli/index.md) — Command-line interface reference
+- [Guides](guides/index.md) — In-depth walkthroughs for LLM conversion, React Native, and more
+- [Community](community.md) — Get involved

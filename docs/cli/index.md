@@ -1,8 +1,14 @@
-# CLI Usage
+---
+title: "CLI"
+description: "Command-line interface reference for get-md"
+sidebar_order: 5
+---
+
+# CLI
 
 get-md includes a command-line interface for quick conversions from your terminal.
 
-## Basic Syntax
+## Usage
 
 ```bash
 getmd [input] [options]
@@ -16,10 +22,10 @@ The CLI accepts input from multiple sources:
 # From stdin
 echo '<h1>Hello</h1>' | getmd
 
-# From file
+# From a file
 getmd input.html
 
-# From URL
+# From a URL
 getmd https://example.com
 ```
 
@@ -110,3 +116,9 @@ getmd --model-path
 |------|---------|
 | 0 | Success |
 | 1 | Error (invalid input, network failure, etc.) |
+
+## See Also
+
+- [API Reference](../api/index.md) — Use get-md as a library
+- [LLM Conversion](../guides/llm-conversion.md) — When and how to use LLM conversion
+- [Configuration](../configuration/index.md) — Config files for default options

@@ -1,24 +1,24 @@
 # get-md
 
-A fast, lightweight HTML to Markdown converter optimized for LLM consumption.
+A fast, lightweight HTML to Markdown converter optimized for LLM consumption — built by the [Nano Collective](https://github.com/Nano-Collective), a community collective building AI tooling not for profit, but for the community. Everything we build is open, transparent, and driven by the people who use it. AI done right.
 
-## Features
+Lightning-fast (<100ms) with optional AI-powered conversion using a local LLM model. Pass in HTML or a URL and get clean, structured Markdown back — as a library or from the command line.
 
-- **Lightning-fast** (<100ms) with optional AI-powered conversion
-- **Intelligent extraction** using Mozilla Readability
-- **CLI included** for command-line usage
-- **TypeScript** with full type definitions
-- **React Native compatible**
+---
+![Build Status](https://github.com/Nano-Collective/get-md/raw/main/badges/build.svg)
+![Coverage](https://github.com/Nano-Collective/get-md/raw/main/badges/coverage.svg)
+![Version](https://github.com/Nano-Collective/get-md/raw/main/badges/npm-version.svg)
+![NPM Downloads](https://github.com/Nano-Collective/get-md/raw/main/badges/npm-downloads-monthly.svg)
+![NPM License](https://github.com/Nano-Collective/get-md/raw/main/badges/npm-license.svg)
+![Repo Size](https://github.com/Nano-Collective/get-md/raw/main/badges/repo-size.svg)
+![Stars](https://github.com/Nano-Collective/get-md/raw/main/badges/stars.svg)
+![Forks](https://github.com/Nano-Collective/get-md/raw/main/badges/forks.svg)
 
-## Installation
+## Quick Start
 
 ```bash
 npm install @nanocollective/get-md
 ```
-
-## Quick Start
-
-### Library
 
 ```typescript
 import { convertToMarkdown } from "@nanocollective/get-md";
@@ -27,25 +27,27 @@ const result = await convertToMarkdown("https://example.com");
 console.log(result.markdown);
 ```
 
-### CLI
+Or use the CLI:
 
 ```bash
-getmd https://example.com -o output.md
+npx @nanocollective/get-md https://example.com -o output.md
 ```
 
 ## Documentation
 
-For full documentation, see [docs/index.md](docs/index.md):
+Full documentation is available online at **[docs.nanocollective.org](https://docs.nanocollective.org/get-md/docs)** or in the [docs/](docs/) folder:
 
-- [API Reference](docs/api.md)
-- [CLI Usage](docs/cli.md)
-- [LLM-Powered Conversion](docs/llm.md)
-- [React Native Support](docs/react-native.md)
+- **[Getting Started](docs/getting-started/index.md)** — Installation, requirements, and your first conversion
+- **[API Reference](docs/api/index.md)** — Full reference for the library API
+- **[CLI](docs/cli/index.md)** — Command-line interface usage and options
+- **[Guides](docs/guides/index.md)** — LLM-powered conversion, React Native, and configuration tips
+- **[Configuration](docs/configuration/index.md)** — Config files and options reference
+- **[Community](docs/community.md)** — Contributing, Discord, and how to help
 
 ## Community
 
-We're a small community-led team building local and privacy-first AI solutions under the [Nano Collective](https://nanocollective.org).
+The Nano Collective is a community collective building AI tooling for the community, not for profit. We'd love your help!
 
-- [Contributing Guide](CONTRIBUTING.md)
-- [Discord Server](https://discord.gg/ktPDV6rekE)
-- [GitHub Issues](https://github.com/nanocollective/get-md/issues)
+- **Contributing**: See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines
+- **Discord**: [Join our server](https://discord.gg/ktPDV6rekE) to connect with other users and contributors
+- **GitHub**: Open issues or join discussions on our repository

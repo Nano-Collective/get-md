@@ -1,15 +1,27 @@
-# API Reference
+---
+title: "convertToMarkdown()"
+description: "API reference for the main convertToMarkdown function"
+sidebar_order: 1
+---
 
-## `convertToMarkdown(html, options?)`
+# convertToMarkdown()
 
 Convert HTML to clean, LLM-optimized Markdown.
 
-### Parameters
+## Usage
 
-- `html` (string): Raw HTML string or URL to fetch
-- `options` (MarkdownOptions): Conversion options (optional)
+```typescript
+import { convertToMarkdown } from "@nanocollective/get-md";
 
-### Returns
+const result = await convertToMarkdown(html, options?);
+```
+
+## Parameters
+
+- `html` (string) — Raw HTML string or URL to fetch
+- `options` (MarkdownOptions) — Conversion options (optional)
+
+## Returns
 
 `Promise<MarkdownResult>`
 
@@ -19,13 +31,26 @@ interface MarkdownResult {
   metadata: {
     title?: string;
     author?: string;
+    excerpt?: string;
+    siteName?: string;
+    publishedTime?: string;
+    language?: string;
+    canonicalUrl?: string;
     readingTime?: number;
-    // ... additional metadata fields
+    wordCount?: number;
+  };
+  stats: {
+    inputLength: number;
+    outputLength: number;
+    processingTime: number;
+    readabilitySuccess: boolean;
+    imageCount: number;
+    linkCount: number;
   };
 }
 ```
 
-### Options
+## Options
 
 ```typescript
 interface MarkdownOptions {
@@ -47,7 +72,7 @@ interface MarkdownOptions {
   headers?: Record<string, string>; // Custom HTTP headers
   userAgent?: string;             // Custom user agent
 
-  // LLM options (see llm.md for details)
+  // LLM options (see LLM Conversion guide for details)
   useLLM?: boolean;               // Use LLM for conversion (default: false)
   llmModelPath?: string;          // Custom model path (optional)
   llmTemperature?: number;        // Generation temperature (default: 0.1)
@@ -62,22 +87,20 @@ interface MarkdownOptions {
 }
 ```
 
-### Option Details
-
-#### Content Options
+### Content Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `extractContent` | boolean | `true` | Use Mozilla Readability to extract the main content from the page, removing navigation, sidebars, and other noise |
-| `includeMeta` | boolean | `true` | Include extracted metadata as YAML frontmatter at the top of the markdown |
+| `extractContent` | boolean | `true` | Use Mozilla Readability to extract the main content, removing navigation, sidebars, and other noise |
+| `includeMeta` | boolean | `true` | Include extracted metadata as YAML frontmatter at the top of the Markdown |
 | `includeImages` | boolean | `true` | Include image references in the output |
 | `includeLinks` | boolean | `true` | Include hyperlinks in the output |
 | `includeTables` | boolean | `true` | Include tables in the output |
 | `aggressiveCleanup` | boolean | `true` | Apply aggressive cleanup to remove ads, cookie notices, and other non-content elements |
-| `maxLength` | number | `1000000` | Maximum character length of the output markdown |
-| `baseUrl` | string | - | Base URL for resolving relative links in the HTML |
+| `maxLength` | number | `1000000` | Maximum character length of the output Markdown |
+| `baseUrl` | string | — | Base URL for resolving relative links in the HTML |
 
-#### URL Fetch Options
+### URL Fetch Options
 
 These options only apply when the input is a URL:
 
@@ -87,8 +110,18 @@ These options only apply when the input is a URL:
 | `timeout` | number | `15000` | Request timeout in milliseconds |
 | `followRedirects` | boolean | `true` | Whether to follow HTTP redirects |
 | `maxRedirects` | number | `5` | Maximum number of redirects to follow |
-| `headers` | object | - | Custom HTTP headers to send with the request |
-| `userAgent` | string | - | Custom User-Agent header |
+| `headers` | object | — | Custom HTTP headers to send with the request |
+| `userAgent` | string | — | Custom User-Agent header |
+
+### LLM Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `useLLM` | boolean | `false` | Use the local LLM model for conversion |
+| `llmModelPath` | string | — | Custom path to a GGUF model file |
+| `llmTemperature` | number | `0.1` | Generation temperature (lower = more deterministic) |
+| `llmMaxTokens` | number | `512000` | Maximum tokens for generation |
+| `llmFallback` | boolean | `true` | Fall back to Turndown if LLM conversion fails |
 
 ## Examples
 
@@ -111,7 +144,6 @@ console.log(result.markdown);
 ### With Metadata
 
 ```typescript
-// Metadata is included by default
 const result = await convertToMarkdown(html);
 console.log(result.markdown);
 // ---
@@ -135,9 +167,6 @@ const result = await convertToMarkdown("https://example.com", {
   headers: { Authorization: "Bearer token" },
 });
 console.log(result.metadata.title);
-
-// Force URL mode if auto-detection fails
-const result = await convertToMarkdown("example.com", { isUrl: true });
 ```
 
 ### Content Filtering
@@ -154,3 +183,22 @@ const result = await convertToMarkdown(html, {
   extractContent: false,
 });
 ```
+
+### LLM-Powered Conversion
+
+```typescript
+const result = await convertToMarkdown("https://example.com", {
+  useLLM: true,
+  onLLMEvent: (event) => {
+    if (event.type === "conversion-complete") {
+      console.log(`Done in ${event.duration}ms`);
+    }
+  },
+});
+```
+
+## See Also
+
+- [Model Management](model-management.md) — LLM model management functions
+- [CLI](../cli/index.md) — Command-line interface reference
+- [LLM Conversion](../guides/llm-conversion.md) — When and how to use LLM conversion
