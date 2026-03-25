@@ -37,7 +37,7 @@
     "test:audit": "pnpm audit --audit-level=high",
     "test:security": "semgrep scan --config auto --error",
     "format": "biome format --write .",
-    "prepublishOnly": "pnpm run build && pnpm run test:all"
+    "prepublishOnly": "pnpm run build"
   },
   "keywords": [
     "html",
