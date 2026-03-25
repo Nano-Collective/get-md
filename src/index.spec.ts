@@ -294,36 +294,54 @@ test("convertToMarkdown: applies multiple options together", async (t) => {
 });
 
 // URL handling tests
+const MOCK_HTML_RESPONSE =
+  "<html><head><title>Example</title></head><body><p>Hello world content here for testing</p></body></html>";
+
+const mockFetch = () => {
+  const originalFetch = global.fetch;
+  global.fetch = (async () =>
+    ({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => MOCK_HTML_RESPONSE,
+    }) as Response) as typeof fetch;
+  return originalFetch;
+};
+
 test.serial(
   "convertToMarkdown: detects and fetches valid HTTP URLs",
   async (t) => {
-    // Note: This test requires network access
-    const url = "https://example.com";
+    const originalFetch = mockFetch();
+    try {
+      const url = "https://example.com";
+      const result = await convertToMarkdown(url);
 
-    // Test that it recognizes as URL and fetches successfully
-    const result = await convertToMarkdown(url);
-
-    // Should successfully fetch and convert
-    t.truthy(result);
-    t.is(typeof result.markdown, "string");
-    t.true(result.markdown.length > 0);
-    t.truthy(result.metadata);
-    t.truthy(result.stats);
+      t.truthy(result);
+      t.is(typeof result.markdown, "string");
+      t.true(result.markdown.length > 0);
+      t.truthy(result.metadata);
+      t.truthy(result.stats);
+    } finally {
+      global.fetch = originalFetch;
+    }
   },
 );
 
 test.serial(
   "convertToMarkdown: detects and fetches valid HTTPS URLs",
   async (t) => {
-    // Note: This test requires network access
-    const url = "https://example.com";
+    const originalFetch = mockFetch();
+    try {
+      const url = "https://example.com";
+      const result = await convertToMarkdown(url);
 
-    // Test that it recognizes as URL and fetches
-    const result = await convertToMarkdown(url);
-
-    t.truthy(result);
-    t.is(typeof result.markdown, "string");
-    t.true(result.markdown.length > 0);
+      t.truthy(result);
+      t.is(typeof result.markdown, "string");
+      t.true(result.markdown.length > 0);
+    } finally {
+      global.fetch = originalFetch;
+    }
   },
 );
 
@@ -353,21 +371,24 @@ test("convertToMarkdown: treats non-URL as HTML by default", async (t) => {
 test.serial(
   "convertToMarkdown: passes fetch options for URL requests",
   async (t) => {
-    // Note: This test requires network access
-    const url = "https://example.com";
-    const options: MarkdownOptions = {
-      timeout: 10000,
-      followRedirects: true,
-      maxRedirects: 3,
-      userAgent: "Custom User Agent",
-    };
+    const originalFetch = mockFetch();
+    try {
+      const url = "https://example.com";
+      const options: MarkdownOptions = {
+        timeout: 10000,
+        followRedirects: true,
+        maxRedirects: 3,
+        userAgent: "Custom User Agent",
+      };
 
-    // Should successfully fetch with custom options
-    const result = await convertToMarkdown(url, options);
+      const result = await convertToMarkdown(url, options);
 
-    t.truthy(result);
-    t.is(typeof result.markdown, "string");
-    t.true(result.markdown.length > 0);
+      t.truthy(result);
+      t.is(typeof result.markdown, "string");
+      t.true(result.markdown.length > 0);
+    } finally {
+      global.fetch = originalFetch;
+    }
   },
 );
 
@@ -388,17 +409,20 @@ test("convertToMarkdown: sets baseUrl to fetched URL automatically", async (t) =
 test.serial(
   "convertToMarkdown: preserves custom baseUrl option for URL fetch",
   async (t) => {
-    // Note: This test requires network access
-    const url = "https://example.com";
+    const originalFetch = mockFetch();
+    try {
+      const url = "https://example.com";
 
-    // Should use custom baseUrl if provided (though url will be used as fallback)
-    const result = await convertToMarkdown(url, {
-      baseUrl: "https://custom-base.com",
-    });
+      const result = await convertToMarkdown(url, {
+        baseUrl: "https://custom-base.com",
+      });
 
-    t.truthy(result);
-    t.is(typeof result.markdown, "string");
-    t.true(result.markdown.length > 0);
+      t.truthy(result);
+      t.is(typeof result.markdown, "string");
+      t.true(result.markdown.length > 0);
+    } finally {
+      global.fetch = originalFetch;
+    }
   },
 );
 

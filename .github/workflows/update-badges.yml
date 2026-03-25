@@ -1,0 +1,145 @@
+name: Update Status Badges
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'  # Once a day at midnight UTC
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  generate-badges:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests for latest coverage
+        run: pnpm run test:ava:coverage || echo "Coverage test failed or not available"
+
+      - name: Extract coverage (if available)
+        id: coverage
+        run: |
+          if [ -f "coverage/coverage-summary.json" ]; then
+            COVERAGE=$(cat coverage/coverage-summary.json | jq -r '.total.lines.pct // "N/A"')
+            echo "percentage=${COVERAGE}" >> $GITHUB_OUTPUT
+          else
+            echo "percentage=N/A" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run build to check status
+        id: build
+        run: |
+          if pnpm build; then
+            echo "status=passing" >> $GITHUB_OUTPUT
+            echo "color=brightgreen" >> $GITHUB_OUTPUT
+          else
+            echo "status=failing" >> $GITHUB_OUTPUT
+            echo "color=red" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate badges
+        run: |
+          # Create badges directory if it doesn't exist
+          mkdir -p badges
+
+          # Coverage badge (with fallback if coverage not available) - with for-the-badge style
+          if [ "${{ steps.coverage.outputs.percentage }}" != "N/A" ]; then
+            COVERAGE_PERCENTAGE="${{ steps.coverage.outputs.percentage }}"
+            COVERAGE_COLOR=$(echo "${COVERAGE_PERCENTAGE}" | awk '{print ($1 >= 80) ? "brightgreen" : ($1 >= 50) ? "yellow" : "red"}')
+            curl -s "https://img.shields.io/badge/coverage-${COVERAGE_PERCENTAGE}%25-${COVERAGE_COLOR}?style=for-the-badge" > badges/coverage.svg
+          else
+            curl -s "https://img.shields.io/badge/coverage-N%2FA-lightgrey?style=for-the-badge" > badges/coverage.svg
+          fi
+
+          # Build status badge - with for-the-badge style and githubactions logo
+          curl -s "https://img.shields.io/badge/build-${{ steps.build.outputs.status }}-${{ steps.build.outputs.color }}?style=for-the-badge&logo=githubactions" > badges/build.svg
+
+          # NPM Downloads (monthly) - with for-the-badge style and npm logo
+          curl -s "https://img.shields.io/npm/dm/@nanocollective/get-md?style=for-the-badge&logo=npm" > badges/npm-downloads-monthly.svg
+
+          # NPM License - with for-the-badge style and npm logo
+          curl -s "https://img.shields.io/npm/l/@nanocollective/get-md?style=for-the-badge" > badges/npm-license.svg
+
+          # GitHub Repo Size - with for-the-badge style and github logo
+          curl -s "https://img.shields.io/github/repo-size/Nano-Collective/get-md?style=for-the-badge&logo=github" > badges/repo-size.svg
+
+          # GitHub Repo Stars - with for-the-badge style and github logo
+          curl -s "https://img.shields.io/github/stars/Nano-Collective/get-md?style=for-the-badge&logo=github" > badges/stars.svg
+
+          # GitHub Forks - with for-the-badge style and github logo
+          curl -s "https://img.shields.io/github/forks/Nano-Collective/get-md?style=for-the-badge&logo=github" > badges/forks.svg
+
+          # NPM version - with for-the-badge style and npm logo
+          curl -s "https://img.shields.io/npm/v/@nanocollective/get-md?style=for-the-badge&logo=npm" > badges/npm-version.svg
+
+      - name: Update README with badges
+        run: |
+          # Update badges in README.md
+          if [ -f "README.md" ]; then
+            # Create a temporary file to avoid direct modification issues
+            cp README.md README.md.tmp
+            
+            # Replace or add badges in the README
+            sed -i 's|!\[Build Status\].*|![Build Status](https://github.com/Nano-Collective/get-md/raw/main/badges/build.svg)|' README.md.tmp || echo "Build badge not found, will add it"
+            sed -i 's|!\[Coverage\].*|![Coverage](https://github.com/Nano-Collective/get-md/raw/main/badges/coverage.svg)|' README.md.tmp || echo "Coverage badge not found, will add it"
+            sed -i 's|!\[Version\].*|![Version](https://github.com/Nano-Collective/get-md/raw/main/badges/npm-version.svg)|' README.md.tmp || echo "Version badge not found, will add it"
+            sed -i 's|!\[NPM Downloads\].*|![NPM Downloads](https://github.com/Nano-Collective/get-md/raw/main/badges/npm-downloads-monthly.svg)|' README.md.tmp || echo "NPM downloads badge not found, will add it"
+            sed -i 's|!\[Stars\].*|![Stars](https://github.com/Nano-Collective/get-md/raw/main/badges/stars.svg)|' README.md.tmp || echo "Stars badge not found, will add it"
+            sed -i 's|!\[License\].*|![License](https://github.com/Nano-Collective/get-md/raw/main/badges/npm-license.svg)|' README.md.tmp || echo "License badge not found, will add it"
+            sed -i 's|!\[Repo Size\].*|![Repo Size](https://github.com/Nano-Collective/get-md/raw/main/badges/repo-size.svg)|' README.md.tmp || echo "Repo size badge not found, will add it"
+            sed -i 's|!\[Forks\].*|![Forks](https://github.com/Nano-Collective/get-md/raw/main/badges/forks.svg)|' README.md.tmp || echo "Forks badge not found, will add it"
+            
+            # If badges section doesn't exist, add it after the first heading
+            if ! grep -q "Build Status\|Coverage\|Version\|NPM Downloads\|Stars\|License" README.md.tmp; then
+              # Add badges after the first heading
+              sed -i '2i \
+          \
+          # Status Badges \
+          \
+          ![Build Status](https://github.com/Nano-Collective/get-md/raw/main/badges/build.svg) \
+          ![Coverage](https://github.com/Nano-Collective/get-md/raw/main/badges/coverage.svg) \
+          ![Version](https://github.com/Nano-Collective/get-md/raw/main/badges/npm-version.svg) \
+          ![NPM Downloads](https://github.com/Nano-Collective/get-md/raw/main/badges/npm-downloads-monthly.svg) \
+          ![Stars](https://github.com/Nano-Collective/get-md/raw/main/badges/stars.svg) \
+          ![License](https://github.com/Nano-Collective/get-md/raw/main/badges/npm-license.svg) \
+          ![Repo Size](https://github.com/Nano-Collective/get-md/raw/main/badges/repo-size.svg) \
+          ![Forks](https://github.com/Nano-Collective/get-md/raw/main/badges/forks.svg) \
+          \
+          ' README.md.tmp
+            fi
+            
+            # Replace the original file
+            mv README.md.tmp README.md
+          fi
+
+      - name: Commit and push badges
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add badges/ README.md
+          # Only commit if there are staged changes
+          if ! git diff --cached --quiet; then
+            git commit -m "Update status badges [skip ci]" || echo "No changes to commit"
+            git push
+          else
+            echo "No changes to commit"
+          fi
