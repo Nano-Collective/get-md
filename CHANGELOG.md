@@ -1,3 +1,7 @@
+  # 1.3.0
+
+- Lazy-loaded `node-llama-cpp` so it's only imported when an LLM operation is actually invoked (`downloadModel`, `LLMConverter.loadModel`, `LLMConverter.convert`). Consumers using only the HTML→Markdown path (`convertToMarkdown`, `checkLLMModel`, `removeLLMModel`, `getLLMModelInfo`) no longer pay the ~600-module cost of loading the native llama.cpp binding at import time. The public API is unchanged.
+
 # 1.2.0
 
 - Refactored docs so that it works with Nano Collective docs site.

@@ -1,12 +1,11 @@
 // src/converters/llm-converter.ts
 
-import {
-  getLlama,
-  type Llama,
-  LlamaChatSession,
-  type LlamaContext,
-  type LlamaModel,
-} from "node-llama-cpp";
+// Types from `node-llama-cpp` are pulled in via `import type` so they are
+// fully erased at compile time. The runtime values (`getLlama`,
+// `LlamaChatSession`) are loaded lazily inside the methods that use them,
+// so consumers who never touch LLM conversion don't pay the ~600-module
+// cost of loading the native binding at import time.
+import type { Llama, LlamaContext, LlamaModel } from "node-llama-cpp";
 import type { LLMEventCallback } from "../types.js";
 
 // Default conversion parameters
@@ -65,6 +64,7 @@ export class LLMConverter {
       await this.emit({
         type: "llama-init-start",
       });
+      const { getLlama } = await import("node-llama-cpp");
       this.llama = await getLlama();
       await this.emit({
         type: "llama-init-complete",
@@ -159,6 +159,7 @@ export class LLMConverter {
 
     try {
       // Create chat session for proper Qwen2.5 chat template handling
+      const { LlamaChatSession } = await import("node-llama-cpp");
       const session = new LlamaChatSession({
         contextSequence: this.context.getSequence(),
       });

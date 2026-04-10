@@ -1,9 +1,13 @@
 // src/converters/llm-manager.ts
 
+// `node-llama-cpp` is loaded lazily inside `downloadModel()` — importing it
+// at module load time pulls in the full native binding (~600+ modules),
+// which consumers of the non-LLM APIs (`convertToMarkdown`, `checkLLMModel`,
+// `removeLLMModel`, etc.) don't need and shouldn't pay for.
+
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { createModelDownloader } from "node-llama-cpp";
 import type {
   LLMDownloadOptions,
   LLMEventCallback,
@@ -160,6 +164,7 @@ export class LLMManager {
     });
 
     try {
+      const { createModelDownloader } = await import("node-llama-cpp");
       const downloader = await createModelDownloader({
         modelUri: `hf:${MODEL_CONFIG.huggingFaceRepo}/${MODEL_CONFIG.fileName}`,
         dirPath: path.dirname(targetPath),
