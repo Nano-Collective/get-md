@@ -28,7 +28,7 @@
     "dev": "tsc --watch",
     "test:all": "./scripts/test.sh",
     "test:ava": "ava",
-    "test:ava:coverage": "c8 ava",
+    "test:ava:coverage": "c8 --reporter=text --reporter=json-summary ava",
     "test:format": "biome check .",
     "test:types": "tsc --noEmit",
     "test:lint": "biome lint .",

@@ -390,8 +390,16 @@ test("CLI: accepts --use-llm flag without error when model not present", async (
   const inputFile = await createTempFile(SIMPLE_HTML);
 
   try {
-    // When running non-interactively, it should fall back to Turndown
-    const { exitCode } = await runCli([inputFile, "--use-llm"]);
+    // Force "model not present" by pointing at a path that doesn't exist,
+    // so the test is deterministic regardless of whether the user has a
+    // real model installed locally. When running non-interactively, the
+    // CLI should fall back to Turndown instead of prompting.
+    const { exitCode } = await runCli([
+      inputFile,
+      "--use-llm",
+      "--llm-model-path",
+      path.join(process.cwd(), "tmp-test-nonexistent-model.gguf"),
+    ]);
 
     // Should succeed by falling back
     t.is(exitCode, 0);
