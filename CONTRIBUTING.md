@@ -2,6 +2,8 @@
 
 Thanks for your interest in contributing to get-md! We welcome contributions from everyone.
 
+get-md is part of the [Nano Collective](https://nanocollective.org). The Nano Collective's [Code of Conduct](https://docs.nanocollective.org/collective/organisation/community#code-of-conduct) applies to all contributors. Some contribution work is paid via scoped bounties from the community fund — see the [Economics Charter](https://docs.nanocollective.org/collective/organisation/economics-charter) for how that works.
+
 ## Requirements
 
 - [Node.js](https://nodejs.org/) 18+
