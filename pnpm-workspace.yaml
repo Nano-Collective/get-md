@@ -1,1 +1,5 @@
+allowBuilds:
+  esbuild: true
+  node-llama-cpp: true
+
 auditConfig: {}
