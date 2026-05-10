@@ -8,6 +8,16 @@ sidebar_order: 1
 
 For higher quality Markdown output, get-md supports optional AI-powered conversion using a local LLM model. This uses [ReaderLM-v2](https://huggingface.co/jinaai/ReaderLM-v2), a model specifically trained for HTML-to-Markdown conversion.
 
+## Prerequisite: install `node-llama-cpp`
+
+Since v1.4.0, `node-llama-cpp` is an **optional peer dependency** rather than a direct dependency. This keeps install size small for the ~95% of users who only need `convertToMarkdown`. To enable LLM features, install it alongside get-md:
+
+```bash
+npm install @nanocollective/get-md node-llama-cpp
+```
+
+If you call any LLM API (`LLMConverter`, `LLMManager`, `createLLMConverter`, `downloadLLMModel`, or `getmd --download-model`) without the peer installed, get-md throws a clear error pointing you here. The standard HTML→Markdown path (`convertToMarkdown`, `hasContent`, etc.) works without it.
+
 ## When to Use LLM vs Turndown
 
 | Use Case | Recommended Method |

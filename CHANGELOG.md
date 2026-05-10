@@ -1,3 +1,7 @@
+# 1.4.0
+
+- **BREAKING for LLM API consumers**: `node-llama-cpp` moved from `dependencies` to an **optional peer dependency**. Consumers who only use the standard HTML→Markdown path (`convertToMarkdown`, `hasContent`, etc.) no longer install ~500 MB of platform-specific native binaries (CUDA, Vulkan, Metal, ARM variants — all fetched by pnpm/npm regardless of host). To use `LLMConverter`, `LLMManager`, `createLLMConverter`, or `getmd --download-model`, install it alongside get-md: `npm install @nanocollective/get-md node-llama-cpp`. Calling any LLM API without the peer installed throws a clear, actionable error via the new `loadNodeLlamaCpp` helper instead of a generic `ERR_MODULE_NOT_FOUND`.
+
 # 1.3.1
 
 - Documentation updates to reflect brand guidelines

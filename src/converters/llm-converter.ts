@@ -7,6 +7,7 @@
 // cost of loading the native binding at import time.
 import type { Llama, LlamaContext, LlamaModel } from "node-llama-cpp";
 import type { LLMEventCallback } from "../types.js";
+import { loadNodeLlamaCpp } from "./load-llama.js";
 
 // Default conversion parameters
 const DEFAULT_TEMPERATURE = 0;
@@ -64,7 +65,7 @@ export class LLMConverter {
       await this.emit({
         type: "llama-init-start",
       });
-      const { getLlama } = await import("node-llama-cpp");
+      const { getLlama } = await loadNodeLlamaCpp();
       this.llama = await getLlama();
       await this.emit({
         type: "llama-init-complete",
@@ -159,7 +160,7 @@ export class LLMConverter {
 
     try {
       // Create chat session for proper Qwen2.5 chat template handling
-      const { LlamaChatSession } = await import("node-llama-cpp");
+      const { LlamaChatSession } = await loadNodeLlamaCpp();
       const session = new LlamaChatSession({
         contextSequence: this.context.getSequence(),
       });

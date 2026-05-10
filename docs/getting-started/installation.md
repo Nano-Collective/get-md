@@ -26,6 +26,16 @@ Then import and use:
 import { convertToMarkdown } from "@nanocollective/get-md";
 ```
 
+### Optional: Enable LLM-powered conversion
+
+`node-llama-cpp` is declared as an **optional peer dependency** so consumers of the standard HTML→Markdown path don't have to download its hundreds of MB of platform-specific native binaries. If you want to use `LLMConverter`, `LLMManager`, `createLLMConverter`, or the `getmd --download-model` CLI flag, install it alongside get-md:
+
+```bash
+npm install @nanocollective/get-md node-llama-cpp
+```
+
+Calling any LLM API without the peer installed throws a clear, actionable error — `convertToMarkdown` and the rest of the standard API work without it.
+
 ## Install Globally (CLI)
 
 Install globally for command-line access:

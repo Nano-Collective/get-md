@@ -15,6 +15,7 @@ import type {
   LLMModelStatus,
   LLMModelVariant,
 } from "../types.js";
+import { loadNodeLlamaCpp } from "./load-llama.js";
 
 // Model configuration
 // Using mradermacher's public mirror since jinaai's repo requires authentication
@@ -164,7 +165,7 @@ export class LLMManager {
     });
 
     try {
-      const { createModelDownloader } = await import("node-llama-cpp");
+      const { createModelDownloader } = await loadNodeLlamaCpp();
       const downloader = await createModelDownloader({
         modelUri: `hf:${MODEL_CONFIG.huggingFaceRepo}/${MODEL_CONFIG.fileName}`,
         dirPath: path.dirname(targetPath),
