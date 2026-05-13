@@ -2,4 +2,4 @@ allowBuilds:
   esbuild: true
   node-llama-cpp: true
 
-auditConfig: {}
+auditConfig: { ignoreGhsas: null }

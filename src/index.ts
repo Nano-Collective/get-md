@@ -104,16 +104,12 @@ export function hasContent(html: string): boolean {
   return hasContentUtil(html);
 }
 
-// Re-export LLM utility functions
-export { checkLLMModel, downloadLLMModel, removeLLMModel, getLLMModelInfo };
-
 export {
   createLLMConverter,
   LLMConverter,
 } from "./converters/llm-converter.js";
 // Re-export LLM classes for advanced usage
 export { LLMManager } from "./converters/llm-manager.js";
-
 // Re-export config utilities
 export {
   findConfigPath,
@@ -122,21 +118,22 @@ export {
   loadConfigFromFile,
   mergeConfigWithOptions,
 } from "./utils/config-loader.js";
-
 // Re-export types
 export type {
-  // Core types
-  MarkdownOptions,
-  MarkdownResult,
   ContentMetadata,
   ConversionStats,
-  TurndownRule,
   FetchOptions,
+  LLMDownloadOptions,
   // LLM types
   LLMEvent,
   LLMEventCallback,
-  LLMModelStatus,
-  LLMDownloadOptions,
   LLMModelInfo,
+  LLMModelStatus,
   LLMModelVariant,
+  // Core types
+  MarkdownOptions,
+  MarkdownResult,
+  TurndownRule,
 };
+// Re-export LLM utility functions
+export { checkLLMModel, downloadLLMModel, getLLMModelInfo, removeLLMModel };
