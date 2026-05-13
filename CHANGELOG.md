@@ -1,3 +1,11 @@
+# 1.4.1
+
+## Toolchain
+
+- **Bumped to pnpm 11 and Node.js 22** — `packageManager` field pinned in `package.json` so CI and contributors stay in sync.
+- **Regenerated `pnpm-lock.yaml`** under pnpm 11 to fix `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH` on frozen installs.
+- **Raised `engines.node` to `>=22`** and updated CONTRIBUTING and installation docs to match.
+
 # 1.4.0
 
 - **BREAKING for LLM API consumers**: `node-llama-cpp` moved from `dependencies` to an **optional peer dependency**. Consumers who only use the standard HTML→Markdown path (`convertToMarkdown`, `hasContent`, etc.) no longer install ~500 MB of platform-specific native binaries (CUDA, Vulkan, Metal, ARM variants — all fetched by pnpm/npm regardless of host). To use `LLMConverter`, `LLMManager`, `createLLMConverter`, or `getmd --download-model`, install it alongside get-md: `npm install @nanocollective/get-md node-llama-cpp`. Calling any LLM API without the peer installed throws a clear, actionable error via the new `loadNodeLlamaCpp` helper instead of a generic `ERR_MODULE_NOT_FOUND`.

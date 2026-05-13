@@ -8,7 +8,7 @@ sidebar_order: 1
 
 ## Requirements
 
-- Node.js 18+
+- Node.js 22+
 
 > **Note:** The optional LLM-powered conversion requires ~1GB disk space for the model and 2-4GB RAM during inference. A system with 8GB+ RAM is recommended for LLM usage.
 

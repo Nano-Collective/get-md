@@ -6,8 +6,8 @@ get-md is part of the [Nano Collective](https://nanocollective.org). The Nano Co
 
 ## Requirements
 
-- [Node.js](https://nodejs.org/) 18+
-- [npm](https://www.npmjs.com/) or [pnpm](https://pnpm.io/)
+- [Node.js](https://nodejs.org/) 22+
+- [pnpm](https://pnpm.io/) 11+
 
 ## Getting Started
 
