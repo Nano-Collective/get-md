@@ -691,3 +691,272 @@ test("CLI: --show-config redacts llm.apiKey", async (t) => {
     await fs.unlink(cfgPath);
   }
 });
+
+// ============================================================================
+// Batch mode CLI tests
+// ============================================================================
+
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+
+interface BatchTestServer {
+  baseUrl: string;
+  close: () => Promise<void>;
+}
+
+/**
+ * Spin up a tiny localhost HTTP server so the spawned CLI process has real
+ * URLs to fetch. The spawned child can't share global.fetch with the parent,
+ * so the only reliable way to test --batch end-to-end is a real server.
+ */
+async function startBatchTestServer(): Promise<BatchTestServer> {
+  const server = createServer((req, res) => {
+    const url = req.url ?? "/";
+    res.writeHead(200, { "content-type": "text/html" });
+    res.end(
+      `<!doctype html><html><body><h1>Page ${url}</h1><p>Lots of content here to make Readability happy with the extraction. Repeated padding repeated padding repeated padding repeated padding repeated padding.</p></body></html>`,
+    );
+  });
+  await new Promise<void>((resolve) =>
+    server.listen(0, "127.0.0.1", resolve),
+  );
+  const port = (server.address() as AddressInfo).port;
+  return {
+    baseUrl: `http://127.0.0.1:${port}`,
+    close: () =>
+      new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      }),
+  };
+}
+
+test("CLI: --help lists --batch and related flags", async (t) => {
+  const { stdout } = await runCli(["--help"]);
+  t.true(stdout.includes("--batch"));
+  t.true(stdout.includes("--concurrency"));
+  t.true(stdout.includes("--name-pattern"));
+  t.true(stdout.includes("--manifest"));
+  t.true(stdout.includes("--stop-on-error"));
+});
+
+test("CLI: --batch reads URLs file and writes one .md per URL", async (t) => {
+  const server = await startBatchTestServer();
+  const tmpDir = await fs.mkdtemp(path.join(process.cwd(), "tmp-test-"));
+  const urlsFile = path.join(tmpDir, "urls.txt");
+  const outDir = path.join(tmpDir, "out");
+  await fs.writeFile(
+    urlsFile,
+    `# a comment\n${server.baseUrl}/one\n\n${server.baseUrl}/two\n`,
+  );
+
+  try {
+    const { exitCode } = await runCli(["--batch", urlsFile, "-o", outDir]);
+    t.is(exitCode, 0);
+    const written = (await fs.readdir(outDir)).sort();
+    t.is(written.length, 2);
+    t.true(written.every((f) => f.endsWith(".md")));
+  } finally {
+    await server.close();
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("CLI: --batch --json emits JSONL (one object per line)", async (t) => {
+  const server = await startBatchTestServer();
+  const tmpDir = await fs.mkdtemp(path.join(process.cwd(), "tmp-test-"));
+  const urlsFile = path.join(tmpDir, "urls.txt");
+  await fs.writeFile(
+    urlsFile,
+    `${server.baseUrl}/a\n${server.baseUrl}/b\n`,
+  );
+
+  try {
+    const { stdout, exitCode } = await runCli([
+      "--batch",
+      urlsFile,
+      "--json",
+    ]);
+    t.is(exitCode, 0);
+    const lines = stdout.trim().split("\n").filter(Boolean);
+    t.is(lines.length, 2);
+    for (const line of lines) {
+      const parsed = JSON.parse(line);
+      t.is(parsed.status, "ok");
+      t.is(typeof parsed.url, "string");
+      t.is(typeof parsed.markdown, "string");
+    }
+  } finally {
+    await server.close();
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("CLI: --batch --manifest writes a summary file", async (t) => {
+  const server = await startBatchTestServer();
+  const tmpDir = await fs.mkdtemp(path.join(process.cwd(), "tmp-test-"));
+  const urlsFile = path.join(tmpDir, "urls.txt");
+  const outDir = path.join(tmpDir, "out");
+  const manifestFile = path.join(tmpDir, "manifest.json");
+  await fs.writeFile(urlsFile, `${server.baseUrl}/p\n`);
+
+  try {
+    const { exitCode } = await runCli([
+      "--batch",
+      urlsFile,
+      "-o",
+      outDir,
+      "--manifest",
+      manifestFile,
+    ]);
+    t.is(exitCode, 0);
+    const raw = await fs.readFile(manifestFile, "utf-8");
+    const manifest = JSON.parse(raw);
+    t.is(manifest.total, 1);
+    t.is(manifest.ok, 1);
+    t.is(manifest.error, 0);
+    t.is(manifest.entries.length, 1);
+    t.truthy(manifest.entries[0].file);
+  } finally {
+    await server.close();
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("CLI: --batch errors clearly when the URLs file is empty", async (t) => {
+  const tmpDir = await fs.mkdtemp(path.join(process.cwd(), "tmp-test-"));
+  const urlsFile = path.join(tmpDir, "urls.txt");
+  await fs.writeFile(urlsFile, "# just a comment\n\n\n");
+
+  try {
+    const { stderr, exitCode } = await runCli(["--batch", urlsFile]);
+    t.not(exitCode, 0);
+    t.true(stderr.includes("No URLs found"));
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+// ============================================================================
+// Sitemap mode CLI tests
+// ============================================================================
+
+interface SitemapTestServer {
+  baseUrl: string;
+  close: () => Promise<void>;
+}
+
+/**
+ * Localhost server that serves both /sitemap.xml and the pages it points at.
+ * The CLI spawns a child process so we can't share global.fetch mocks — real
+ * HTTP is the simplest path.
+ */
+async function startSitemapTestServer(): Promise<SitemapTestServer> {
+  const server = createServer((req, res) => {
+    const url = req.url ?? "/";
+    if (url === "/sitemap.xml") {
+      const baseUrl = `http://127.0.0.1:${
+        (server.address() as AddressInfo).port
+      }`;
+      res.writeHead(200, { "content-type": "application/xml" });
+      res.end(
+        `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>${baseUrl}/page-1</loc></url>
+  <url><loc>${baseUrl}/page-2</loc></url>
+  <url><loc>${baseUrl}/blog/post</loc></url>
+</urlset>`,
+      );
+      return;
+    }
+    res.writeHead(200, { "content-type": "text/html" });
+    res.end(
+      `<!doctype html><html><body><h1>Page ${url}</h1><p>Lots of content here to make Readability happy. Repeated padding repeated padding repeated padding repeated padding repeated padding.</p></body></html>`,
+    );
+  });
+  await new Promise<void>((resolve) =>
+    server.listen(0, "127.0.0.1", resolve),
+  );
+  const port = (server.address() as AddressInfo).port;
+  return {
+    baseUrl: `http://127.0.0.1:${port}`,
+    close: () =>
+      new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      }),
+  };
+}
+
+test("CLI: --help lists --sitemap and related flags", async (t) => {
+  const { stdout } = await runCli(["--help"]);
+  t.true(stdout.includes("--sitemap"));
+  t.true(stdout.includes("--include"));
+  t.true(stdout.includes("--exclude"));
+  t.true(stdout.includes("--max-depth"));
+  t.true(stdout.includes("--max-urls"));
+});
+
+test("CLI: --sitemap fetches sitemap and converts every page", async (t) => {
+  const server = await startSitemapTestServer();
+  const tmpDir = await fs.mkdtemp(path.join(process.cwd(), "tmp-test-"));
+  const outDir = path.join(tmpDir, "out");
+
+  try {
+    const { exitCode } = await runCli([
+      "--sitemap",
+      `${server.baseUrl}/sitemap.xml`,
+      "-o",
+      outDir,
+    ]);
+    t.is(exitCode, 0);
+    const written = await fs.readdir(outDir);
+    t.is(written.length, 3);
+    t.true(written.every((f) => f.endsWith(".md")));
+  } finally {
+    await server.close();
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("CLI: --sitemap --include filters URLs before converting", async (t) => {
+  const server = await startSitemapTestServer();
+  const tmpDir = await fs.mkdtemp(path.join(process.cwd(), "tmp-test-"));
+  const outDir = path.join(tmpDir, "out");
+
+  try {
+    const { exitCode } = await runCli([
+      "--sitemap",
+      `${server.baseUrl}/sitemap.xml`,
+      "--include",
+      "**/blog/**",
+      "-o",
+      outDir,
+    ]);
+    t.is(exitCode, 0);
+    const written = await fs.readdir(outDir);
+    t.is(written.length, 1);
+  } finally {
+    await server.close();
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("CLI: --sitemap --json emits JSONL", async (t) => {
+  const server = await startSitemapTestServer();
+
+  try {
+    const { stdout, exitCode } = await runCli([
+      "--sitemap",
+      `${server.baseUrl}/sitemap.xml`,
+      "--json",
+    ]);
+    t.is(exitCode, 0);
+    const lines = stdout.trim().split("\n").filter(Boolean);
+    t.is(lines.length, 3);
+    for (const line of lines) {
+      const parsed = JSON.parse(line);
+      t.is(parsed.status, "ok");
+    }
+  } finally {
+    await server.close();
+  }
+});

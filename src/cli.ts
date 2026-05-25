@@ -4,9 +4,11 @@
 
 import { readFileSync } from "node:fs";
 import fs from "node:fs/promises";
+import path from "node:path";
 import readline from "node:readline";
 import { Presets, SingleBar } from "cli-progress";
 import { Command } from "commander";
+import { convertBatch } from "./batch.js";
 import {
   checkLLMModel,
   convertToMarkdown,
@@ -14,7 +16,9 @@ import {
   getLLMModelInfo,
   removeLLMModel,
 } from "./index.js";
+import { parseSitemap } from "./sitemap.js";
 import type {
+  ConversionStats,
   LLMEvent,
   LlmConfig,
   MarkdownOptions,
@@ -25,6 +29,10 @@ import {
   loadConfig,
   mergeConfigWithOptions,
 } from "./utils/config-loader.js";
+import {
+  DEFAULT_NAME_PATTERN,
+  uniqueFilenameForUrl,
+} from "./utils/filename.js";
 
 interface CliOptions {
   output?: string;
@@ -57,6 +65,18 @@ interface CliOptions {
   compare?: boolean;
   // Output format
   json?: boolean;
+  // Batch mode
+  batch?: string;
+  concurrency?: string;
+  namePattern?: string;
+  manifest?: string;
+  stopOnError?: boolean;
+  // Sitemap mode
+  sitemap?: string;
+  include?: string[];
+  exclude?: string[];
+  maxDepth?: string;
+  maxUrls?: string;
 }
 
 const pkg = JSON.parse(
@@ -113,7 +133,53 @@ program
   // Output format
   .option(
     "--json",
-    "Output the full result as JSON (markdown + metadata + stats) instead of just the markdown body",
+    "Output the full result as JSON (markdown + metadata + stats) instead of just the markdown body. In batch mode, emits JSONL (one result per line).",
+  )
+  // Batch mode
+  .option(
+    "--batch <file>",
+    "Read URLs from <file> (one per line, # comments allowed) and convert each. Use -o <dir> to write per-URL .md files.",
+  )
+  .option(
+    "--concurrency <n>",
+    "Max concurrent conversions in batch mode (default: 5)",
+  )
+  .option(
+    "--name-pattern <pattern>",
+    "Filename pattern for batch output. Placeholders: {host} {path} {slug} {index} (default: {host}-{slug}.md)",
+  )
+  .option(
+    "--manifest <file>",
+    "Write a JSON summary of the batch ({url, file, status, error?, stats?}[]) to <file>",
+  )
+  .option(
+    "--stop-on-error",
+    "Abort the batch on the first failed URL instead of recording the error and continuing",
+  )
+  // Sitemap mode (composes with all the batch flags above)
+  .option(
+    "--sitemap <url>",
+    "Crawl a sitemap.xml (or sitemap index) and convert every URL. Use -o <dir> to write per-URL .md files.",
+  )
+  .option(
+    "--include <pattern>",
+    "Only convert URLs matching this glob pattern (repeatable). Supports * and **",
+    collectRepeatable,
+    [] as string[],
+  )
+  .option(
+    "--exclude <pattern>",
+    "Skip URLs matching this glob pattern (repeatable). Applied after --include",
+    collectRepeatable,
+    [] as string[],
+  )
+  .option(
+    "--max-depth <n>",
+    "Max recursion depth when following nested sitemap-index files (default: 3)",
+  )
+  .option(
+    "--max-urls <n>",
+    "Hard cap on the number of URLs taken from a sitemap (default: 10000)",
   )
   .action(async (input: string | undefined, options: CliOptions) => {
     try {
@@ -140,6 +206,20 @@ program
 
       if (options.showConfig) {
         handleShowConfig(options.config);
+        return;
+      }
+
+      // Sitemap mode: walks a sitemap.xml (and any nested indexes) then
+      // hands off to the same batch machinery as --batch.
+      if (options.sitemap) {
+        await handleSitemapMode(options);
+        return;
+      }
+
+      // Batch mode: takes precedence over the single-URL flow and ignores
+      // the positional [input] argument.
+      if (options.batch) {
+        await handleBatchMode(options);
         return;
       }
 
@@ -276,6 +356,238 @@ async function handleMarkdownConversion(
   } else {
     console.log(payload);
   }
+}
+
+// ============================================================================
+// Batch Mode
+// ============================================================================
+
+interface BatchManifestEntry {
+  url: string;
+  status: "ok" | "error";
+  file?: string;
+  error?: string;
+  stats?: ConversionStats;
+}
+
+async function handleBatchMode(options: CliOptions): Promise<void> {
+  if (!options.batch) {
+    throw new Error("Batch mode requires --batch <file>");
+  }
+  const urls = await readBatchUrls(options.batch);
+  if (urls.length === 0) {
+    throw new Error(`No URLs found in ${options.batch}`);
+  }
+  await runBatchOverUrls(urls, options);
+}
+
+async function handleSitemapMode(options: CliOptions): Promise<void> {
+  if (!options.sitemap) {
+    throw new Error("Sitemap mode requires --sitemap <url>");
+  }
+
+  const maxDepth = options.maxDepth
+    ? Number.parseInt(options.maxDepth, 10)
+    : undefined;
+  const maxUrls = options.maxUrls
+    ? Number.parseInt(options.maxUrls, 10)
+    : undefined;
+  if (maxDepth !== undefined && Number.isNaN(maxDepth)) {
+    throw new Error("--max-depth must be a positive integer");
+  }
+  if (maxUrls !== undefined && Number.isNaN(maxUrls)) {
+    throw new Error("--max-urls must be a positive integer");
+  }
+
+  if (process.stderr.isTTY) {
+    process.stderr.write(`Fetching sitemap: ${options.sitemap}\n`);
+  }
+
+  const urls = await parseSitemap(options.sitemap, {
+    maxDepth,
+    maxUrls,
+    include: options.include?.length ? options.include : undefined,
+    exclude: options.exclude?.length ? options.exclude : undefined,
+  });
+
+  if (urls.length === 0) {
+    throw new Error(
+      `No URLs found in sitemap ${options.sitemap} (after include/exclude filtering)`,
+    );
+  }
+
+  if (process.stderr.isTTY) {
+    process.stderr.write(`Found ${urls.length} URL(s); starting batch...\n`);
+  }
+
+  await runBatchOverUrls(urls, options);
+}
+
+/**
+ * Shared batch driver. Takes a URL list (from --batch or --sitemap) and a
+ * resolved CLI options object; handles concurrency, per-URL output, JSONL,
+ * manifest, progress, and exit codes.
+ */
+async function runBatchOverUrls(
+  urls: string[],
+  options: CliOptions,
+): Promise<void> {
+  const concurrency = options.concurrency
+    ? Math.max(1, Number.parseInt(options.concurrency, 10))
+    : undefined;
+  if (concurrency !== undefined && Number.isNaN(concurrency)) {
+    throw new Error("--concurrency must be a positive integer");
+  }
+
+  const continueOnError = !options.stopOnError;
+  const namePattern = options.namePattern || DEFAULT_NAME_PATTERN;
+
+  // Output target. -o <dir> writes per-URL files; without it, results stream
+  // to stdout (JSONL when --json, otherwise a divider-separated stream).
+  let outDir: string | null = null;
+  if (options.output) {
+    outDir = options.output;
+    await fs.mkdir(outDir, { recursive: true });
+  }
+
+  // Load file config so the LLM block + env-substituted apiKey flow through.
+  const fileConfig = loadConfig();
+  const cliOptions = {
+    extractContent: options.extract,
+    includeMeta: options.frontmatter,
+    includeImages: options.images,
+    includeLinks: options.links,
+    includeTables: options.tables,
+    maxLength: parseInt(options.maxLength, 10),
+    baseUrl: options.baseUrl,
+    useLLM: options.useLlm,
+    llmModelPath: options.llmModelPath,
+    llmTemperature: options.llmTemperature
+      ? parseFloat(options.llmTemperature)
+      : undefined,
+    llm: buildCliLlmConfig(options),
+  };
+  const conversionOptions = mergeConfigWithOptions(fileConfig, cliOptions);
+
+  const takenNames = new Set<string>();
+  const manifest: BatchManifestEntry[] = [];
+  let processedIndex = 0;
+  let okCount = 0;
+  let errCount = 0;
+
+  const progressToTty = process.stderr.isTTY;
+  const startedAt = Date.now();
+
+  try {
+    for await (const result of convertBatch(urls, {
+      ...conversionOptions,
+      concurrency,
+      continueOnError,
+    })) {
+      const entry: BatchManifestEntry = {
+        url: result.url,
+        status: result.status,
+      };
+      let fileName: string | undefined;
+      if (outDir) {
+        fileName = uniqueFilenameForUrl(
+          result.url,
+          namePattern,
+          processedIndex,
+          takenNames,
+        );
+        entry.file = fileName;
+      }
+      processedIndex++;
+
+      if (result.status === "ok") {
+        okCount++;
+        entry.stats = result.stats;
+        if (outDir && fileName) {
+          await fs.writeFile(
+            path.join(outDir, fileName),
+            result.markdown,
+            "utf-8",
+          );
+        } else if (options.json) {
+          process.stdout.write(`${JSON.stringify(result)}\n`);
+        } else {
+          process.stdout.write(
+            `# ${result.url}\n\n${result.markdown}\n\n---\n\n`,
+          );
+        }
+      } else {
+        errCount++;
+        entry.error = result.error.message;
+        if (options.json && !outDir) {
+          process.stdout.write(
+            `${JSON.stringify({ status: "error", url: result.url, error: result.error.message })}\n`,
+          );
+        }
+      }
+
+      manifest.push(entry);
+
+      if (progressToTty) {
+        const indicator = result.status === "ok" ? "✓" : "✗";
+        process.stderr.write(
+          `${indicator} [${processedIndex}/${urls.length}] ${result.url}${
+            entry.file ? ` → ${entry.file}` : ""
+          }${result.status === "error" ? `  (${result.error.message})` : ""}\n`,
+        );
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Batch aborted: ${message}`);
+    if (options.manifest) {
+      await writeManifest(options.manifest, manifest, urls.length, startedAt);
+    }
+    process.exit(1);
+  }
+
+  if (options.manifest) {
+    await writeManifest(options.manifest, manifest, urls.length, startedAt);
+  }
+
+  const elapsed = ((Date.now() - startedAt) / 1000).toFixed(2);
+  console.error(
+    `\nBatch complete: ${okCount} ok, ${errCount} error, ${elapsed}s elapsed`,
+  );
+
+  if (errCount > 0 && !continueOnError) {
+    process.exit(1);
+  }
+}
+
+async function readBatchUrls(filePath: string): Promise<string[]> {
+  const raw = await fs.readFile(filePath, "utf-8");
+  return raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
+}
+
+/** Commander `--option <val>` collector for repeatable string options. */
+function collectRepeatable(value: string, previous: string[]): string[] {
+  return previous.concat(value);
+}
+
+async function writeManifest(
+  filePath: string,
+  entries: BatchManifestEntry[],
+  total: number,
+  startedAt: number,
+): Promise<void> {
+  const okCount = entries.filter((e) => e.status === "ok").length;
+  const summary = {
+    total,
+    ok: okCount,
+    error: entries.length - okCount,
+    durationMs: Date.now() - startedAt,
+    entries,
+  };
+  await fs.writeFile(filePath, JSON.stringify(summary, null, 2), "utf-8");
 }
 
 // ============================================================================

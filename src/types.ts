@@ -450,6 +450,63 @@ export interface FetchOptions {
   maxBytes?: number;
 }
 
+// ============================================================================
+// Batch conversion
+// ============================================================================
+
+/** Per-URL progress event surfaced via `BatchOptions.onProgress` */
+export interface BatchProgress {
+  /** Number of URLs completed (success or error) */
+  completed: number;
+  /** Total URLs in the batch */
+  total: number;
+  /** The URL that just finished */
+  url: string;
+  /** Status of the URL that just finished */
+  status: "ok" | "error";
+}
+
+/** Options for `convertBatch` / `convertBatchAll` */
+export interface BatchOptions extends MarkdownOptions {
+  /**
+   * Maximum number of conversions running in parallel. Default: 5.
+   * Pick conservatively when hitting remote LLM providers — most have rate
+   * limits well below "as fast as you can".
+   */
+  concurrency?: number;
+
+  /**
+   * When true (default), URL failures don't abort the batch — they surface
+   * as `BatchResult` entries with status `'error'`. When false, the iterator
+   * throws on the first failure.
+   */
+  continueOnError?: boolean;
+
+  /**
+   * Called once per URL as it completes. Useful for progress bars in CLI /
+   * UI integrations.
+   */
+  onProgress?: (progress: BatchProgress) => void | Promise<void>;
+}
+
+/**
+ * One entry in a batch result. Discriminated by `status` so TypeScript narrows
+ * to either the successful payload or the error payload after a check.
+ */
+export type BatchResult =
+  | {
+      status: "ok";
+      url: string;
+      markdown: string;
+      metadata: ContentMetadata;
+      stats: ConversionStats;
+    }
+  | {
+      status: "error";
+      url: string;
+      error: Error;
+    };
+
 /** Custom Turndown rule */
 export interface TurndownRule {
   /** Rule name */

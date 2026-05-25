@@ -49,12 +49,41 @@ getmd https://example.com
 | Option | Description |
 |--------|-------------|
 | `--use-llm` | Use LLM for conversion |
+| `--llm-provider <name>` | `openai-compatible` \| `anthropic` \| `google` \| `local-llama` (default: local-llama) |
+| `--llm-base-url <url>` | Base URL for the LLM provider (required for openai-compatible) |
+| `--llm-model <id>` | Model identifier for the LLM provider |
+| `--llm-api-key <key>` | API key (prefer env vars + config file) |
 | `--model-info` | Check model status |
 | `--download-model` | Download the LLM model |
 | `--remove-model` | Remove the LLM model |
 | `--model-path` | Show default model path |
 | `--compare` | Compare Turndown vs LLM output |
 | `--show-config` | Show current configuration |
+
+### Batch Mode
+
+See [Batch Mode](../guides/batch.md) for a full walkthrough.
+
+| Option | Description |
+|--------|-------------|
+| `--batch <file>` | Read URLs from `<file>` (one per line, `#` comments allowed) |
+| `--concurrency <n>` | Max parallel conversions (default: 5) |
+| `--name-pattern <pattern>` | Filename pattern for batch output (default: `{host}-{slug}.md`). Placeholders: `{host}`, `{path}`, `{slug}`, `{index}` |
+| `--manifest <file>` | Write a JSON summary of the batch to `<file>` |
+| `--stop-on-error` | Abort on first failure (default: continue and record errors) |
+| `--json` | Emit `{ markdown, metadata, stats }` as JSON. In batch mode, emits JSONL (one result per line). |
+
+### Sitemap Mode
+
+See [Sitemap Crawling](../guides/sitemap.md) for a full walkthrough. Composes with every batch flag above.
+
+| Option | Description |
+|--------|-------------|
+| `--sitemap <url>` | Walk a `sitemap.xml` (or sitemap index) and convert every URL |
+| `--include <pattern>` | Only convert URLs matching this glob (repeatable). Supports `*` and `**` |
+| `--exclude <pattern>` | Skip URLs matching this glob (repeatable). Applied after `--include` |
+| `--max-depth <n>` | Max recursion into nested sitemap-index files (default: 3) |
+| `--max-urls <n>` | Hard cap on URLs taken from a sitemap (default: 10000) |
 
 ## Examples
 

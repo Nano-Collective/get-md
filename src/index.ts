@@ -8,6 +8,9 @@ import {
 } from "./converters/llm-manager.js";
 import { MarkdownParser } from "./parsers/markdown-parser.js";
 import type {
+  BatchOptions,
+  BatchProgress,
+  BatchResult,
   ContentMetadata,
   ConversionStats,
   FetchOptions,
@@ -109,12 +112,21 @@ export function hasContent(html: string): boolean {
   return hasContentUtil(html);
 }
 
+// Re-export batch helpers
+export { convertBatch, convertBatchAll } from "./batch.js";
 export {
   createLLMConverter,
   LLMConverter,
 } from "./converters/llm-converter.js";
 // Re-export LLM classes for advanced usage
 export { LLMManager } from "./converters/llm-manager.js";
+// Re-export sitemap helpers
+export {
+  convertSitemap,
+  parseSitemap,
+  parseSitemapXml,
+  type SitemapOptions,
+} from "./sitemap.js";
 // Re-export chunking utility
 export {
   type ChunkOptions,
@@ -133,6 +145,10 @@ export {
 export { estimateTokens } from "./utils/tokens.js";
 // Re-export types
 export type {
+  // Batch types
+  BatchOptions,
+  BatchProgress,
+  BatchResult,
   ContentMetadata,
   ConversionStats,
   FetchOptions,
