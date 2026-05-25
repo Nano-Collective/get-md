@@ -62,6 +62,16 @@ getmd --batch urls.txt -o ./out/ --concurrency 3
 
 Default is 5. Pick conservatively when hitting LLM providers — most have rate limits well below "as fast as you can." `--stop-on-error` aborts on the first failure (default is to record the error and keep going).
 
+### Cache for fast dev loops
+
+While iterating on a pipeline (different LLM models, different chunk sizes, different output formats), the network fetches dominate run time. Enable the cache and re-runs hit local disk instead of re-fetching every page:
+
+```bash
+getmd --batch urls.txt -o ./out/ --cache
+```
+
+Default cache dir is `~/.get-md/cache`, TTL is 1 hour. Override with `--cache-dir ./.cache/` and `--cache-max-age 86400` (1 day). Transient HTTP failures are also retried automatically — `--retries 5` if you're hitting flaky servers.
+
 ### Custom filename pattern
 
 ```bash

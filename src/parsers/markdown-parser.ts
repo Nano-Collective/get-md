@@ -913,6 +913,10 @@ export class MarkdownParser {
       headers: options.headers,
       userAgent: options.userAgent,
       maxBytes: options.maxBytes,
+      retries: options.retries,
+      retryDelay: options.retryDelay,
+      cache: options.cache,
+      cacheMaxAge: options.cacheMaxAge,
 
       // LLM options
       useLLM: options.useLLM ?? false,

@@ -41,8 +41,19 @@ getmd https://example.com
 | `--no-tables` | Remove tables from output |
 | `--max-length <n>` | Maximum output length (default: 1000000) |
 | `--base-url <url>` | Base URL for resolving relative links |
+| `--download-images <dir>` | Download referenced images to `<dir>` and rewrite the markdown `src` to point at the local copies |
 | `-v, --verbose` | Verbose output |
 | `-h, --help` | Display help |
+
+### Network Options
+
+| Option | Description |
+|--------|-------------|
+| `--retries <n>` | Retry attempts on transient HTTP failures: 5xx, 429, network errors (default: 2) |
+| `--retry-delay <ms>` | Initial backoff between retries in ms (default: 500). Exponential + jitter. Respects `Retry-After` header on 429. |
+| `--cache` | Cache successful responses on disk (default dir: `~/.get-md/cache`) |
+| `--cache-dir <path>` | Custom directory for the HTTP cache. Implies `--cache`. |
+| `--cache-max-age <seconds>` | Max age of a cached entry in seconds (default: 3600 = 1 hour) |
 
 ### LLM Options
 

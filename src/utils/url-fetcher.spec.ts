@@ -179,14 +179,13 @@ test("fetchUrl: handles non-Error exceptions", async (t) => {
     throw "String error";
   }) as typeof fetch;
 
-  // For non-Error exceptions, the promise will still reject
-  // We just need to verify it throws something
-  try {
-    await fetchUrl("https://example.com");
-    t.fail("Should have thrown an error");
-  } catch (error) {
-    t.is(error, "String error");
-  }
+  // Non-Error throws are wrapped in a "Failed to fetch URL: ..." message so
+  // callers always see a real Error with a useful .message. The original
+  // payload is preserved in the message.
+  await t.throwsAsync(
+    () => fetchUrl("https://example.com", { retries: 0 }),
+    { message: /Failed to fetch URL: String error/ },
+  );
 });
 
 test("isValidUrl: returns true for valid HTTP URLs", (t) => {
@@ -260,4 +259,279 @@ test("isValidUrl: handles IP addresses with protocol", (t) => {
   t.true(isValidUrl("https://192.168.1.1:8080"));
   t.true(isValidUrl("http://[::1]"));
   t.true(isValidUrl("http://[2001:db8::1]"));
+});
+
+// ============================================================================
+// Retry tests
+// ============================================================================
+
+test("fetchUrl: retries on HTTP 503 and succeeds", async (t) => {
+  let attempts = 0;
+  global.fetch = (async () => {
+    attempts++;
+    if (attempts < 3) {
+      return {
+        ok: false,
+        status: 503,
+        statusText: "Service Unavailable",
+        text: async () => "",
+      } as Response;
+    }
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => "<html><body>finally</body></html>",
+    } as Response;
+  }) as typeof fetch;
+
+  const result = await fetchUrl("https://example.com", {
+    retries: 3,
+    retryDelay: 1, // keep tests fast
+  });
+  t.is(result, "<html><body>finally</body></html>");
+  t.is(attempts, 3);
+});
+
+test("fetchUrl: retries on HTTP 429", async (t) => {
+  let attempts = 0;
+  global.fetch = (async () => {
+    attempts++;
+    if (attempts === 1) {
+      return {
+        ok: false,
+        status: 429,
+        statusText: "Too Many Requests",
+        text: async () => "",
+      } as Response;
+    }
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => "<html>ok</html>",
+    } as Response;
+  }) as typeof fetch;
+
+  const result = await fetchUrl("https://example.com", {
+    retries: 2,
+    retryDelay: 1,
+  });
+  t.is(result, "<html>ok</html>");
+  t.is(attempts, 2);
+});
+
+test("fetchUrl: retries on network error", async (t) => {
+  let attempts = 0;
+  global.fetch = (async () => {
+    attempts++;
+    if (attempts === 1) throw new Error("ECONNRESET");
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => "<html>recovered</html>",
+    } as Response;
+  }) as typeof fetch;
+
+  const result = await fetchUrl("https://example.com", {
+    retries: 2,
+    retryDelay: 1,
+  });
+  t.is(result, "<html>recovered</html>");
+  t.is(attempts, 2);
+});
+
+test("fetchUrl: does NOT retry on HTTP 404", async (t) => {
+  let attempts = 0;
+  global.fetch = (async () => {
+    attempts++;
+    return {
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      text: async () => "",
+    } as Response;
+  }) as typeof fetch;
+
+  await t.throwsAsync(
+    () => fetchUrl("https://example.com", { retries: 3, retryDelay: 1 }),
+    { message: /HTTP 404/ },
+  );
+  t.is(attempts, 1, "404 is non-retryable; one attempt only");
+});
+
+test("fetchUrl: gives up after maxAttempts and surfaces the last error", async (t) => {
+  let attempts = 0;
+  global.fetch = (async () => {
+    attempts++;
+    return {
+      ok: false,
+      status: 503,
+      statusText: "Service Unavailable",
+      text: async () => "",
+    } as Response;
+  }) as typeof fetch;
+
+  await t.throwsAsync(
+    () => fetchUrl("https://example.com", { retries: 2, retryDelay: 1 }),
+    { message: /HTTP 503/ },
+  );
+  t.is(attempts, 3, "1 initial attempt + 2 retries");
+});
+
+test("fetchUrl: respects Retry-After header on 429", async (t) => {
+  const start = Date.now();
+  let attempts = 0;
+  global.fetch = (async () => {
+    attempts++;
+    if (attempts === 1) {
+      return {
+        ok: false,
+        status: 429,
+        statusText: "Too Many Requests",
+        text: async () => "",
+        headers: new Headers({ "retry-after": "1" }), // 1 second
+      } as Response;
+    }
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      text: async () => "<html>ok</html>",
+    } as Response;
+  }) as typeof fetch;
+
+  await fetchUrl("https://example.com", { retries: 2, retryDelay: 1 });
+  const elapsed = Date.now() - start;
+  t.true(elapsed >= 900, `expected ~1s delay, got ${elapsed}ms`);
+});
+
+test("fetchUrl: retries=0 disables retry", async (t) => {
+  let attempts = 0;
+  global.fetch = (async () => {
+    attempts++;
+    return {
+      ok: false,
+      status: 503,
+      statusText: "Service Unavailable",
+      text: async () => "",
+    } as Response;
+  }) as typeof fetch;
+
+  await t.throwsAsync(
+    () => fetchUrl("https://example.com", { retries: 0 }),
+    { message: /HTTP 503/ },
+  );
+  t.is(attempts, 1);
+});
+
+// ============================================================================
+// Cache tests
+// ============================================================================
+
+import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
+  const dir = await mkdtemp(join(tmpdir(), "get-md-cache-test-"));
+  try {
+    return await fn(dir);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+test("fetchUrl: cache miss falls through to network and writes the entry", async (t) => {
+  await withTempDir(async (cacheDir) => {
+    let calls = 0;
+    global.fetch = (async () => {
+      calls++;
+      return {
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        text: async () => "<html>fresh</html>",
+      } as Response;
+    }) as typeof fetch;
+
+    const result = await fetchUrl("https://example.com/x", { cache: cacheDir });
+    t.is(result, "<html>fresh</html>");
+    t.is(calls, 1);
+
+    // Cache file should exist now.
+    const files = await readdir(cacheDir);
+    t.is(files.length, 1);
+    t.true(files[0].endsWith(".json"));
+  });
+});
+
+test("fetchUrl: cache hit avoids the network", async (t) => {
+  await withTempDir(async (cacheDir) => {
+    let calls = 0;
+    global.fetch = (async () => {
+      calls++;
+      return {
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        text: async () => `<html>call-${calls}</html>`,
+      } as Response;
+    }) as typeof fetch;
+
+    // First call populates the cache.
+    const first = await fetchUrl("https://example.com/x", { cache: cacheDir });
+    // Second call should hit the cache and NOT call fetch again.
+    const second = await fetchUrl("https://example.com/x", { cache: cacheDir });
+
+    t.is(first, "<html>call-1</html>");
+    t.is(second, "<html>call-1</html>"); // same body — not call-2
+    t.is(calls, 1, "fetch was called once; cache served the second request");
+  });
+});
+
+test("fetchUrl: cache TTL expiry forces re-fetch", async (t) => {
+  await withTempDir(async (cacheDir) => {
+    let calls = 0;
+    global.fetch = (async () => {
+      calls++;
+      return {
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        text: async () => `<html>call-${calls}</html>`,
+      } as Response;
+    }) as typeof fetch;
+
+    await fetchUrl("https://example.com/x", { cache: cacheDir });
+    // Wait past a 50ms TTL.
+    await new Promise((r) => setTimeout(r, 80));
+    await fetchUrl("https://example.com/x", {
+      cache: cacheDir,
+      cacheMaxAge: 50,
+    });
+
+    t.is(calls, 2, "expired cache should re-fetch");
+  });
+});
+
+test("fetchUrl: different URLs get independent cache entries", async (t) => {
+  await withTempDir(async (cacheDir) => {
+    global.fetch = (async (url: string | URL | Request) => {
+      const href = typeof url === "string" ? url : url.toString();
+      return {
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        text: async () => `<html>${href}</html>`,
+      } as Response;
+    }) as typeof fetch;
+
+    await fetchUrl("https://example.com/a", { cache: cacheDir });
+    await fetchUrl("https://example.com/b", { cache: cacheDir });
+
+    const files = await readdir(cacheDir);
+    t.is(files.length, 2);
+  });
 });

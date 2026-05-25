@@ -284,6 +284,37 @@ export interface MarkdownOptions {
   /** Maximum response body size for URL fetches, in bytes (default: 10MB) */
   maxBytes?: number;
 
+  /**
+   * Download images referenced in the converted markdown to this directory
+   * and rewrite their `src` to point at the local copies. Useful for offline
+   * archives, PDF export, and RAG pipelines that need to retain visuals.
+   * Per-image failures are logged but don't fail the conversion. Skips
+   * data: URLs and non-HTTP(S) schemes. Default: off.
+   */
+  downloadImages?: string;
+
+  /**
+   * Hint to the image localizer (used only when `downloadImages` is set).
+   * When set, image `src` values are rewritten to a path relative to
+   * `dirname(outputPath)` — so a markdown file at `./out/page.md` with
+   * images at `./out/assets/` correctly references `./assets/img.png`.
+   * When unset, the rewrite falls back to bare basenames (assumes markdown
+   * and images live side-by-side).
+   */
+  outputPath?: string;
+
+  /** Number of retries on transient HTTP failures (default: 2) */
+  retries?: number;
+
+  /** Initial backoff delay in ms between retries (default: 500) */
+  retryDelay?: number;
+
+  /** Enable HTTP response cache. `true` uses ~/.get-md/cache; a string is a custom path */
+  cache?: boolean | string;
+
+  /** Max age of a cached entry in milliseconds (default: 1 hour) */
+  cacheMaxAge?: number;
+
   // ========================================================================
   // LLM Options
   // ========================================================================
@@ -448,6 +479,33 @@ export interface FetchOptions {
    * disable the cap (not recommended for untrusted URLs).
    */
   maxBytes?: number;
+
+  /**
+   * Number of retries on transient failures (network errors, 5xx, 429).
+   * Set to 0 to disable. Default: 2 — i.e. up to 3 total attempts.
+   */
+  retries?: number;
+
+  /**
+   * Base delay (ms) for the first retry. Subsequent retries use exponential
+   * backoff (base * 2^attempt) plus ≤25% jitter. A 429 response with a
+   * `Retry-After` header overrides this. Default: 500.
+   */
+  retryDelay?: number;
+
+  /**
+   * File-system cache for fetched responses. `true` uses the default dir
+   * (`~/.get-md/cache`); a string is treated as a custom path. A cache hit
+   * skips the network entirely (and the retry loop). Cache misses fall
+   * through to a live fetch; cache writes are fire-and-forget. Default: off.
+   */
+  cache?: boolean | string;
+
+  /**
+   * Max age of a cached entry in milliseconds. Older entries are treated as
+   * misses and re-fetched. Default: 3,600,000 (1 hour).
+   */
+  cacheMaxAge?: number;
 }
 
 // ============================================================================

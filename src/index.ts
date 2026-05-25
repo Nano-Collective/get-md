@@ -87,6 +87,10 @@ export async function convertToMarkdown(
       headers: options?.headers,
       userAgent: options?.userAgent,
       maxBytes: options?.maxBytes,
+      retries: options?.retries,
+      retryDelay: options?.retryDelay,
+      cache: options?.cache,
+      cacheMaxAge: options?.cacheMaxAge,
     };
 
     // Fetch HTML from URL
@@ -99,7 +103,28 @@ export async function convertToMarkdown(
 
   // Use async path to enable Readability content extraction
   // sync path doesn't support content extraction
-  return parser.convertAsync(inputHtml, convertOptions);
+  const result = await parser.convertAsync(inputHtml, convertOptions);
+
+  // Optional post-processing: download every referenced image into a local
+  // directory and rewrite the src. Per-image failures are logged inside,
+  // not thrown — the markdown still comes back useful.
+  if (options?.downloadImages) {
+    const { localizeImages } = await import("./optimizers/image-localizer.js");
+    const localized = await localizeImages(result.markdown, {
+      outDir: options.downloadImages,
+      userAgent: options.userAgent,
+      timeout: options.timeout,
+      outputPath: options.outputPath,
+      // baseUrl flows through from the URL fetch (see above) so the
+      // localizer can resolve relative image refs that survived our HTML
+      // cleaner. Defense-in-depth: even if cleanHTML missed a relative ref,
+      // we still produce an absolute URL we can fetch.
+      baseUrl: baseUrl,
+    });
+    result.markdown = localized.markdown;
+  }
+
+  return result;
 }
 
 /**

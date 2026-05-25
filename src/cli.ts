@@ -65,6 +65,8 @@ interface CliOptions {
   compare?: boolean;
   // Output format
   json?: boolean;
+  // Image localization
+  downloadImages?: string;
   // Batch mode
   batch?: string;
   concurrency?: string;
@@ -77,6 +79,12 @@ interface CliOptions {
   exclude?: string[];
   maxDepth?: string;
   maxUrls?: string;
+  // HTTP retry + cache
+  retries?: string;
+  retryDelay?: string;
+  cache?: boolean;
+  cacheDir?: string;
+  cacheMaxAge?: string;
 }
 
 const pkg = JSON.parse(
@@ -135,6 +143,10 @@ program
     "--json",
     "Output the full result as JSON (markdown + metadata + stats) instead of just the markdown body. In batch mode, emits JSONL (one result per line).",
   )
+  .option(
+    "--download-images <dir>",
+    "Download referenced images to <dir> and rewrite the markdown src to point at the local copies",
+  )
   // Batch mode
   .option(
     "--batch <file>",
@@ -181,6 +193,27 @@ program
     "--max-urls <n>",
     "Hard cap on the number of URLs taken from a sitemap (default: 10000)",
   )
+  // HTTP retry + cache (apply to every fetch — single URL, batch, sitemap)
+  .option(
+    "--retries <n>",
+    "Retry attempts on transient HTTP failures: 5xx, 429, network errors (default: 2)",
+  )
+  .option(
+    "--retry-delay <ms>",
+    "Initial backoff between retries in ms (default: 500). Exponential + jitter.",
+  )
+  .option(
+    "--cache",
+    "Cache successful responses on disk (default dir: ~/.get-md/cache). A cache hit skips the network entirely.",
+  )
+  .option(
+    "--cache-dir <path>",
+    "Custom directory for the HTTP cache. Implies --cache.",
+  )
+  .option(
+    "--cache-max-age <seconds>",
+    "Max age of a cached entry in seconds (default: 3600 = 1 hour)",
+  )
   .action(async (input: string | undefined, options: CliOptions) => {
     try {
       // Handle model management commands first
@@ -225,6 +258,14 @@ program
 
       // Get input HTML
       const html = await getInput(input);
+
+      // When the positional arg was a URL, treat it as the implicit
+      // --base-url so downstream things (relative link/image resolution,
+      // image localization) work without the user having to pass --base-url
+      // explicitly. User-supplied --base-url still wins.
+      if (input?.startsWith("http") && !options.baseUrl) {
+        options.baseUrl = input;
+      }
 
       // Comparison mode
       if (options.compare) {
@@ -298,6 +339,13 @@ async function handleMarkdownConversion(
       : undefined,
     // Pluggable LLM backend from CLI flags
     llm: buildCliLlmConfig(options),
+    // HTTP retry + cache flags
+    ...buildCliFetchOptions(options),
+    // Image localization
+    downloadImages: options.downloadImages,
+    // Tell the localizer where the markdown will live so it can compute
+    // correct relative paths to the assets dir.
+    outputPath: options.output,
     // Event callbacks for CLI feedback - always show progress for LLM since it can be slow
     onLLMEvent: options.useLlm
       ? options.verbose
@@ -344,7 +392,7 @@ async function handleMarkdownConversion(
 
   // Write output
   if (options.output) {
-    await fs.writeFile(options.output, payload, "utf-8");
+    await writeFileEnsureDir(options.output, payload);
     if (process.stdout.isTTY) {
       console.error(`✓ Written to ${options.output}`);
       if (options.verbose) {
@@ -466,6 +514,11 @@ async function runBatchOverUrls(
       ? parseFloat(options.llmTemperature)
       : undefined,
     llm: buildCliLlmConfig(options),
+    ...buildCliFetchOptions(options),
+    downloadImages: options.downloadImages,
+    // Per-page markdown lives in outDir; the localizer only uses the
+    // dirname, so a placeholder filename is fine here.
+    outputPath: outDir ? path.join(outDir, "page.md") : undefined,
   };
   const conversionOptions = mergeConfigWithOptions(fileConfig, cliOptions);
 
@@ -573,6 +626,58 @@ function collectRepeatable(value: string, previous: string[]): string[] {
   return previous.concat(value);
 }
 
+/**
+ * Write a file to disk, creating the parent directory if it doesn't exist.
+ * Saves the user from `ENOENT` when they pass `-o ./nested/out.md` without
+ * having made `./nested/` first.
+ */
+async function writeFileEnsureDir(
+  filePath: string,
+  contents: string,
+): Promise<void> {
+  const dir = path.dirname(filePath);
+  if (dir && dir !== "." && dir !== "/") {
+    await fs.mkdir(dir, { recursive: true });
+  }
+  await fs.writeFile(filePath, contents, "utf-8");
+}
+
+/**
+ * Translate the HTTP retry + cache CLI flags into MarkdownOptions fields.
+ * Returns only the fields that were explicitly set so config-file defaults
+ * still win when the user didn't pass a flag.
+ */
+function buildCliFetchOptions(options: CliOptions): Partial<MarkdownOptions> {
+  const out: Partial<MarkdownOptions> = {};
+  if (options.retries !== undefined) {
+    const n = Number.parseInt(options.retries, 10);
+    if (!Number.isFinite(n) || n < 0) {
+      throw new Error("--retries must be a non-negative integer");
+    }
+    out.retries = n;
+  }
+  if (options.retryDelay !== undefined) {
+    const n = Number.parseInt(options.retryDelay, 10);
+    if (!Number.isFinite(n) || n < 0) {
+      throw new Error("--retry-delay must be a non-negative integer");
+    }
+    out.retryDelay = n;
+  }
+  if (options.cacheDir !== undefined) {
+    out.cache = options.cacheDir;
+  } else if (options.cache) {
+    out.cache = true;
+  }
+  if (options.cacheMaxAge !== undefined) {
+    const n = Number.parseInt(options.cacheMaxAge, 10);
+    if (!Number.isFinite(n) || n < 0) {
+      throw new Error("--cache-max-age must be a non-negative integer");
+    }
+    out.cacheMaxAge = n * 1000; // CLI takes seconds, internal API uses ms
+  }
+  return out;
+}
+
 async function writeManifest(
   filePath: string,
   entries: BatchManifestEntry[],
@@ -587,7 +692,7 @@ async function writeManifest(
     durationMs: Date.now() - startedAt,
     entries,
   };
-  await fs.writeFile(filePath, JSON.stringify(summary, null, 2), "utf-8");
+  await writeFileEnsureDir(filePath, JSON.stringify(summary, null, 2));
 }
 
 // ============================================================================
@@ -795,8 +900,8 @@ async function handleComparisonMode(
     const turndownFile = `${baseName}.turndown.md`;
     const llmFile = `${baseName}.llm.md`;
 
-    await fs.writeFile(turndownFile, turndownResult.markdown, "utf-8");
-    await fs.writeFile(llmFile, llmResult.markdown, "utf-8");
+    await writeFileEnsureDir(turndownFile, turndownResult.markdown);
+    await writeFileEnsureDir(llmFile, llmResult.markdown);
 
     console.log(`\nOutputs written to:`);
     console.log(`  - ${turndownFile}`);

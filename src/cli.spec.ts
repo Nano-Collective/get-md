@@ -739,6 +739,51 @@ test("CLI: --help lists --batch and related flags", async (t) => {
   t.true(stdout.includes("--stop-on-error"));
 });
 
+test("CLI: positional URL arg auto-sets baseUrl (image refs resolve)", async (t) => {
+  // Spin up a server that serves both an HTML page with a relative image
+  // ref AND the image itself. Then run the CLI with --download-images.
+  // Without auto-baseUrl, the localizer can't resolve `/img.png` and
+  // downloads nothing.
+  const server = createServer((req, res) => {
+    if (req.url === "/img.png") {
+      res.writeHead(200, { "content-type": "image/png" });
+      res.end(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+      return;
+    }
+    res.writeHead(200, { "content-type": "text/html" });
+    res.end(
+      `<!doctype html><html><body><h1>Hi</h1><p>Padding padding padding padding padding padding padding padding.</p><img src="/img.png" alt="logo"></body></html>`,
+    );
+  });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const port = (server.address() as AddressInfo).port;
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  const tmpDir = await fs.mkdtemp(path.join(process.cwd(), "tmp-test-"));
+  const outFile = path.join(tmpDir, "out.md");
+  const assetsDir = path.join(tmpDir, "assets");
+
+  try {
+    const { exitCode } = await runCli([
+      baseUrl,
+      "-o",
+      outFile,
+      "--download-images",
+      assetsDir,
+      "--no-extract",
+    ]);
+    t.is(exitCode, 0);
+    const assets = await fs.readdir(assetsDir);
+    t.is(assets.length, 1, "the relative-ref image should have downloaded");
+    t.true(assets[0].endsWith(".png"));
+    const md = await fs.readFile(outFile, "utf-8");
+    t.regex(md, /!\[logo\]\(\.\/assets\/[a-f0-9]+\.png\)/);
+  } finally {
+    await new Promise<void>((r) => server.close(() => r()));
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
 test("CLI: --batch reads URLs file and writes one .md per URL", async (t) => {
   const server = await startBatchTestServer();
   const tmpDir = await fs.mkdtemp(path.join(process.cwd(), "tmp-test-"));

@@ -172,6 +172,7 @@ function cleanAttributes($: cheerio.CheerioAPI): void {
     const attrs = $el.attr();
 
     if (attrs) {
+      const tagName = (el as { tagName?: string }).tagName?.toLowerCase();
       Object.keys(attrs).forEach((attr) => {
         // Keep attributes in the keepAttributes set
         if (keepAttributes.has(attr)) {
@@ -180,13 +181,28 @@ function cleanAttributes($: cheerio.CheerioAPI): void {
 
         // Also preserve data- attributes on pre/code elements and their containers
         // These often contain clean code content (GitHub, GitLab, etc.)
-        const tagName = (el as { tagName?: string }).tagName?.toLowerCase();
         if (
           attr.startsWith("data-") &&
           (tagName === "pre" ||
             tagName === "code" ||
             tagName === "div" ||
             tagName === "figure")
+        ) {
+          return;
+        }
+
+        // Preserve common lazy-loading attributes on <img> tags. Wikipedia,
+        // Medium, most modern blog platforms put the real URL in `data-src`
+        // (or `data-original` / `data-lazy-src`) and use `src` as a 1×1
+        // placeholder. Stripping these would leave the placeholder as the
+        // only URL — and would silently break image localization.
+        if (
+          tagName === "img" &&
+          (attr === "data-src" ||
+            attr === "data-original" ||
+            attr === "data-lazy-src" ||
+            attr === "srcset" ||
+            attr === "data-srcset")
         ) {
           return;
         }
@@ -258,15 +274,20 @@ function removeEmptyElements($: cheerio.CheerioAPI): void {
 function resolveRelativeUrls($: cheerio.CheerioAPI, baseUrl: string): void {
   const base = new URL(baseUrl);
 
-  // Resolve image sources
+  // Resolve image sources — including the lazy-load attributes preserved by
+  // cleanAttributes. If we miss these, lazy images stay as relative refs
+  // that can't be fetched downstream.
+  const imageUrlAttrs = ["src", "data-src", "data-original", "data-lazy-src"];
   $("img").each((_, el) => {
     const $el = $(el);
-    const src = $el.attr("src");
-    if (src && !src.startsWith("http") && !src.startsWith("data:")) {
-      try {
-        $el.attr("src", new URL(src, base).href);
-      } catch {
-        // Ignore invalid URLs
+    for (const attr of imageUrlAttrs) {
+      const value = $el.attr(attr);
+      if (value && !value.startsWith("http") && !value.startsWith("data:")) {
+        try {
+          $el.attr(attr, new URL(value, base).href);
+        } catch {
+          // Ignore invalid URLs
+        }
       }
     }
   });
