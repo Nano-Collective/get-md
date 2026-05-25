@@ -1,3 +1,74 @@
+# 1.5.0
+
+Big release. Adds a pluggable LLM backend, batch + sitemap crawling, image localization, an HTTP cache with retry/backoff, and the helper functions that make get-md useful as a RAG ingestion building block. Plus a sweep of bug fixes from a top-to-bottom review of the 1.4.x surface.
+
+## New features
+
+### Pluggable LLM backend
+
+`useLLM: true` is no longer hard-wired to local ReaderLM-v2 — it now routes through whichever provider you configure. Mirrors the same `sdkProvider` shape used by [nanotune](https://github.com/Nano-Collective/nanotune) and [nano-coder](https://github.com/Nano-Collective/nano-coder), so one config covers the Nano Collective stack.
+
+- **Providers:** `openai-compatible` (covers Ollama, OpenRouter, Together, Groq, LM Studio, OpenAI, vLLM), `anthropic`, `google`, `local-llama`. Defaults to `local-llama` when `useLLM: true` and no `llm` block is set, so existing setups keep working unchanged.
+- **Optional peer deps:** `ai`, `@ai-sdk/openai-compatible`, `@ai-sdk/anthropic`, `@ai-sdk/google` — install only the provider you actually use. Missing peer deps surface a clear "install this" error, not `ERR_MODULE_NOT_FOUND`.
+- **`${ENV_VAR}` substitution** in config files (recursive, including `${VAR:-default}` form), so `apiKey` never has to live in committed JSON.
+- **CLI flags:** `--llm-provider`, `--llm-base-url`, `--llm-model`, `--llm-api-key`. `--show-config` redacts `apiKey` when printing.
+- See the new [Remote LLM Providers guide](docs/guides/remote-llm.md).
+
+### Batch mode
+
+- **`convertBatch(urls, options)`** — async iterator that yields per-URL results as they complete, with bounded concurrency.
+- **`convertBatchAll(urls, options)`** — Promise convenience that buffers into an array.
+- **CLI:** `--batch <file>` reads URLs (one per line, `#` comments and blanks stripped), `-o <dir>` writes one `.md` per URL, `--concurrency` (default 5), `--stop-on-error` (default: continue), `--name-pattern` (default `{host}-{slug}.md` with `{host}/{path}/{slug}/{index}` placeholders), `--manifest <file>` for a JSON summary.
+- `--json` in batch mode emits **JSONL** (one result per line) for streaming into `jq` or other tools.
+
+### Sitemap crawling
+
+- **`parseSitemap(source, options)`** — fetch a sitemap URL (or parse raw XML), recursively follow `<sitemapindex>` files, return a flat URL list.
+- **`convertSitemap(sitemapUrl, options)`** — async iterator that yields `BatchResult` per page; composes `parseSitemap` + `convertBatch`.
+- **CLI:** `--sitemap <url>`, `--include <glob>` and `--exclude <glob>` (both repeatable; `*` matches no slashes, `**` matches any chars), `--max-depth` (default 3), `--max-urls` (default 10000).
+- See the new [Sitemap Crawling guide](docs/guides/sitemap.md).
+
+### LLM workflow helpers
+
+- **`chunkMarkdown(md, { maxTokens, overlap?, includeHeadingPath? })`** — split markdown at heading boundaries for RAG ingestion. Tracks `headingPath` per chunk, prepends the trail to continuation chunks, supports overlap.
+- **`estimateTokens(text)`** — chars/4 heuristic for quick context budgeting. Available as a standalone export and surfaced automatically on `ConversionStats.estimatedTokens` for every conversion.
+- **`--json` CLI flag** emits `{ markdown, metadata, stats }` for the single-URL path too.
+
+### Image localization
+
+- **`downloadImages: '<dir>'`** option on `convertToMarkdown` (CLI: `--download-images <dir>`) downloads referenced images in parallel and rewrites the markdown `src` to point at the local copies. Per-image failures log a warning but never fail the conversion. Deduplicates URLs referenced multiple times. Filenames are deterministic (`<sha256-prefix>.<ext>`) so re-runs overwrite cleanly.
+- **Smart path rewriting** — when given an `outputPath`, the rewrite produces a path relative to the markdown file's directory. Markdown at `./out/page.md` with images at `./out/assets/foo.png` correctly gets `./assets/foo.png` refs.
+- **CLI auto-baseUrl** — when the positional input is a URL, the CLI now sets that as the implicit `baseUrl` so relative image refs (`/images/logo.svg`) resolve correctly without having to pass `--base-url` manually.
+- **Lazy-load support** — HTML cleaner preserves `data-src`, `data-original`, `data-lazy-src`, and `srcset` on `<img>` tags (and resolves them against the base URL). Wikipedia, Medium, Substack, and most modern blog platforms use these for lazy loading; without preservation, only 1×1 placeholders survive.
+
+### HTTP cache + retry
+
+- **Retries on transient failures** — network errors, 5xx, 429. Exponential backoff with ≤25% jitter. Honors `Retry-After` header on 429 (parses both seconds and HTTP-date forms). New options: `retries` (default 2), `retryDelay` (default 500ms). CLI: `--retries`, `--retry-delay`.
+- **File-system cache** — opt-in via `cache: true` (uses `~/.get-md/cache`) or `cache: '<path>'`. Cache hits skip the network entirely (and the retry loop). New options: `cache`, `cacheMaxAge` (default 1 hour). CLI: `--cache`, `--cache-dir`, `--cache-max-age <seconds>`. Best-effort: cache failures fall back to a live fetch, never throw.
+
+## Bug fixes
+
+- **`getmd --version`** was hardcoded to `"1.0.0"`. Now reads from `package.json` at runtime.
+- **Model size copy fixed** — text said "986MB" (the legacy model) but the actual shipped Q4_K_M is 1.12GB. Updated everywhere.
+- **`llmMaxTokens` default lowered to 8192** (was 512000, which was always capped at 8192 by the converter — the documented number was a lie). Internal `LLMConverter` defaults reconciled to match the public ones (`0.1` / `8192`).
+- **Stale `dist/parsers/json-parser.*`** removed (leftover from a deleted feature). `ajv` dependency dropped — it was unused in `src/`. Build script now does `rm -rf dist` before `tsc` so this can't recur. CLI description no longer claims "extract structured JSON".
+- **Custom-rule state leak fixed** — `MarkdownParser` was reusing a single `TurndownService` across calls, causing user-supplied `customRules` to accumulate between conversions. Now constructs a fresh instance per `convert()`.
+- **`Required<MarkdownOptions>` cast** in `normalizeOptions` replaced with a proper `NormalizedMarkdownOptions` type so optional fields stay optional. No more type holes.
+- **`fetchUrl` size cap** — new `maxBytes` option (default 10MB). Aborts the fetch if `Content-Length` declares more, and stream-aborts mid-flight if a server lies about / omits it. Prevents a hostile or misbehaving URL from forcing unbounded buffering.
+- **`-o ./nested/file.md`** now auto-creates the parent directory instead of crashing with `ENOENT`. Affects single-URL output, `--compare`'s pair of outputs, and `--manifest`.
+
+## Documentation
+
+- New API reference pages: `docs/api/batch.md`, `docs/api/sitemap.md`, `docs/api/utilities.md`. Plus a restructured `docs/api/index.md` with every public export linked. The old `convertToMarkdown()` page is now "Conversion API" (URL slug unchanged so deep links don't break).
+- New guides: `docs/guides/remote-llm.md`, `docs/guides/batch.md`, `docs/guides/sitemap.md`.
+- Per-feature crib sheets in the repo root (`SMOKE_TESTS.md`, `CRAWL_SITEMAP.md`, `TEST_IMAGES.md`) for manual verification.
+
+## Tests
+
+528 passing (up from 405 at 1.4.1). Adds coverage for: retry on 5xx/429/network errors and `Retry-After` honoring, HTTP cache hit/miss/TTL, image localization with relative refs and `baseUrl`, protocol-relative URLs, non-http(s) scheme skipping, CLI auto-baseUrl end-to-end, sitemap parsing (flat and nested), batch concurrency caps, chunking heading boundaries, env-var substitution, JSON output (single + JSONL), and more.
+
+If there are any problems, feedback or thoughts please drop an issue or message us through Discord! Thank you for using get-md.
+
 # 1.4.1
 
 ## Toolchain
