@@ -18,8 +18,12 @@ import type {
   LLMModelInfo,
   LLMModelStatus,
   LLMModelVariant,
+  LlmConfig,
+  LocalLlamaConfig,
   MarkdownOptions,
   MarkdownResult,
+  RemoteLlmConfig,
+  SdkProvider,
   TurndownRule,
 } from "./types.js";
 import { fetchUrl, isValidUrl } from "./utils/url-fetcher.js";
@@ -79,6 +83,7 @@ export async function convertToMarkdown(
       maxRedirects: options?.maxRedirects,
       headers: options?.headers,
       userAgent: options?.userAgent,
+      maxBytes: options?.maxBytes,
     };
 
     // Fetch HTML from URL
@@ -110,6 +115,12 @@ export {
 } from "./converters/llm-converter.js";
 // Re-export LLM classes for advanced usage
 export { LLMManager } from "./converters/llm-manager.js";
+// Re-export chunking utility
+export {
+  type ChunkOptions,
+  chunkMarkdown,
+  type MarkdownChunk,
+} from "./utils/chunker.js";
 // Re-export config utilities
 export {
   findConfigPath,
@@ -118,6 +129,8 @@ export {
   loadConfigFromFile,
   mergeConfigWithOptions,
 } from "./utils/config-loader.js";
+// Re-export token estimation utility
+export { estimateTokens } from "./utils/tokens.js";
 // Re-export types
 export type {
   ContentMetadata,
@@ -130,9 +143,14 @@ export type {
   LLMModelInfo,
   LLMModelStatus,
   LLMModelVariant,
+  // Pluggable LLM backend types
+  LlmConfig,
+  LocalLlamaConfig,
   // Core types
   MarkdownOptions,
   MarkdownResult,
+  RemoteLlmConfig,
+  SdkProvider,
   TurndownRule,
 };
 // Re-export LLM utility functions

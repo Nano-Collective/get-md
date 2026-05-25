@@ -76,7 +76,7 @@ interface MarkdownOptions {
   useLLM?: boolean;               // Use LLM for conversion (default: false)
   llmModelPath?: string;          // Custom model path (optional)
   llmTemperature?: number;        // Generation temperature (default: 0.1)
-  llmMaxTokens?: number;          // Max tokens (default: 512000)
+  llmMaxTokens?: number;          // Context window in tokens (default: 8192)
   llmFallback?: boolean;          // Fallback to Turndown on error (default: true)
 
   // Event callbacks
@@ -120,7 +120,7 @@ These options only apply when the input is a URL:
 | `useLLM` | boolean | `false` | Use the local LLM model for conversion |
 | `llmModelPath` | string | — | Custom path to a GGUF model file |
 | `llmTemperature` | number | `0.1` | Generation temperature (lower = more deterministic) |
-| `llmMaxTokens` | number | `512000` | Maximum tokens for generation |
+| `llmMaxTokens` | number | `8192` | LLM context window (input + generation), capped at 32768 on the local llama.cpp path |
 | `llmFallback` | boolean | `true` | Fall back to Turndown if LLM conversion fails |
 
 ## Examples

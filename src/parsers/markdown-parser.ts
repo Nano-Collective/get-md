@@ -5,6 +5,7 @@ import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
 import { LLMConverter } from "../converters/llm-converter.js";
 import { checkLLMModel } from "../converters/llm-manager.js";
+import { RemoteLlmConverter } from "../converters/remote-llm-converter.js";
 import { extractMetadata } from "../extractors/metadata-extractor.js";
 import { cleanHTML } from "../optimizers/html-cleaner.js";
 import { formatForLLM } from "../optimizers/llm-formatter.js";
@@ -12,18 +13,65 @@ import { enhanceStructure } from "../optimizers/structure-enhancer.js";
 import type {
   ContentMetadata,
   LLMEventCallback,
+  LlmConfig,
+  LocalLlamaConfig,
   MarkdownOptions,
   MarkdownResult,
   TurndownNode,
   TurndownRule,
 } from "../types.js";
+import { estimateTokens } from "../utils/tokens.js";
+
+// Keys that `normalizeOptions` always populates with a concrete default.
+// Everything else stays optional — see NormalizedMarkdownOptions below.
+type DefaultedOptionKeys =
+  | "extractContent"
+  | "includeMeta"
+  | "customRules"
+  | "preserveElements"
+  | "maxLength"
+  | "includeImages"
+  | "includeLinks"
+  | "includeTables"
+  | "aggressiveCleanup"
+  | "timeout"
+  | "followRedirects"
+  | "maxRedirects"
+  | "useLLM"
+  | "llmTemperature"
+  | "llmMaxTokens"
+  | "llmFallback";
+
+type NormalizedMarkdownOptions = Required<
+  Pick<MarkdownOptions, DefaultedOptionKeys>
+> &
+  Omit<MarkdownOptions, DefaultedOptionKeys>;
+
+/**
+ * Pick the LLM backend to use for this conversion. Precedence:
+ *
+ * 1. `opts.llm` (the new pluggable config block) — used as-is.
+ * 2. Legacy `llmModelPath` / `llmTemperature` / `llmMaxTokens` shorthand —
+ *    folded into a `local-llama` config so the zero-API-key ReaderLM path
+ *    keeps working unchanged for existing users.
+ */
+function resolveLlmConfig(opts: NormalizedMarkdownOptions): LlmConfig {
+  if (opts.llm) return opts.llm;
+  const fallback: LocalLlamaConfig = { sdkProvider: "local-llama" };
+  if (opts.llmModelPath) fallback.modelPath = opts.llmModelPath;
+  if (opts.llmTemperature !== undefined) {
+    fallback.temperature = opts.llmTemperature;
+  }
+  if (opts.llmMaxTokens !== undefined) fallback.maxTokens = opts.llmMaxTokens;
+  return fallback;
+}
 
 export class MarkdownParser {
-  private turndown: TurndownService;
-
-  constructor() {
-    // Initialize Turndown with LLM-friendly settings
-    this.turndown = new TurndownService({
+  // Build a fresh Turndown instance per conversion. Turndown holds rule state
+  // on the instance, so reusing a single instance across calls causes
+  // user-supplied `customRules` to accumulate and leak between conversions.
+  private createTurndown(): TurndownService {
+    const turndown = new TurndownService({
       headingStyle: "atx", // Use # style headings
       hr: "---", // Horizontal rule style
       bulletListMarker: "-", // Use - for lists
@@ -36,10 +84,12 @@ export class MarkdownParser {
     });
 
     // Add GitHub Flavored Markdown support (tables, strikethrough, etc.)
-    this.turndown.use(gfm);
+    turndown.use(gfm);
 
     // Set up custom rules optimized for LLMs
-    this.setupLLMRules();
+    this.setupLLMRules(turndown);
+
+    return turndown;
   }
 
   /**
@@ -143,7 +193,7 @@ export class MarkdownParser {
    */
   private async preprocessHtml(
     html: string,
-    opts: Required<MarkdownOptions>,
+    opts: NormalizedMarkdownOptions,
   ): Promise<{
     contentHtml: string;
     metadata: ContentMetadata;
@@ -199,7 +249,7 @@ export class MarkdownParser {
    */
   private preprocessHtmlSync(
     html: string,
-    opts: Required<MarkdownOptions>,
+    opts: NormalizedMarkdownOptions,
   ): {
     contentHtml: string;
     metadata: ContentMetadata;
@@ -237,15 +287,18 @@ export class MarkdownParser {
    */
   private convertWithTurndown(
     contentHtml: string,
-    opts: Required<MarkdownOptions>,
+    opts: NormalizedMarkdownOptions,
   ): string {
-    // Apply custom rules if provided
+    // Fresh Turndown per call so user-supplied custom rules don't accumulate
+    // across successive convert()/convertAsync() invocations on the same parser.
+    const turndown = this.createTurndown();
+
     if (opts.customRules && opts.customRules.length > 0) {
-      this.applyCustomRules(opts.customRules);
+      this.applyCustomRules(turndown, opts.customRules);
     }
 
     // Convert to markdown
-    let markdown = this.turndown.turndown(contentHtml);
+    let markdown = turndown.turndown(contentHtml);
 
     // Apply LLM-specific formatting
     markdown = formatForLLM(markdown);
@@ -254,19 +307,33 @@ export class MarkdownParser {
   }
 
   /**
-   * Convert preprocessed HTML to Markdown using LLM
+   * Convert preprocessed HTML to Markdown using whichever LLM backend the
+   * resolved config points at — local llama.cpp (the default) or any remote
+   * AI SDK provider.
    */
   private async convertWithLLM(
     contentHtml: string,
-    opts: Required<MarkdownOptions>,
+    opts: NormalizedMarkdownOptions,
     emitEvent: LLMEventCallback,
   ): Promise<string> {
-    // Check if model is available
+    const resolved = resolveLlmConfig(opts);
+
+    if (resolved.sdkProvider === "local-llama") {
+      return this.convertWithLocalLlama(contentHtml, resolved, emitEvent);
+    }
+    return this.convertWithRemoteLlm(contentHtml, resolved, emitEvent);
+  }
+
+  /** Run the local ReaderLM-v2 path via node-llama-cpp */
+  private async convertWithLocalLlama(
+    contentHtml: string,
+    config: LocalLlamaConfig,
+    emitEvent: LLMEventCallback,
+  ): Promise<string> {
     await emitEvent({ type: "model-check", status: "checking" });
 
-    const modelPath = opts.llmModelPath;
     const modelStatus = await checkLLMModel({
-      modelPath: modelPath || undefined,
+      modelPath: config.modelPath,
     });
 
     if (!modelStatus.available) {
@@ -282,32 +349,39 @@ export class MarkdownParser {
       path: modelStatus.path,
     });
 
-    // Create and load the converter
     const converter = new LLMConverter({
       modelPath: modelStatus.path || "",
       onEvent: emitEvent,
-      temperature: opts.llmTemperature,
-      maxTokens: opts.llmMaxTokens,
+      temperature: config.temperature,
+      maxTokens: config.maxTokens,
     });
 
     try {
       await converter.loadModel();
-
-      // Convert HTML to Markdown using LLM
-      const markdown = await converter.convert(contentHtml);
-
-      return markdown;
+      return await converter.convert(contentHtml);
     } finally {
-      // Always unload the model to free memory
       await converter.unload();
     }
+  }
+
+  /** Run a remote (openai-compatible / anthropic / google) provider */
+  private async convertWithRemoteLlm(
+    contentHtml: string,
+    config: Exclude<LlmConfig, LocalLlamaConfig>,
+    emitEvent: LLMEventCallback,
+  ): Promise<string> {
+    const converter = new RemoteLlmConverter({
+      config,
+      onEvent: emitEvent,
+    });
+    return converter.convert(contentHtml);
   }
 
   /**
    * Create a unified event emitter from options
    */
   private createEventEmitter(
-    opts: Required<MarkdownOptions>,
+    opts: NormalizedMarkdownOptions,
   ): LLMEventCallback {
     return async (event) => {
       // Call unified callback if provided
@@ -361,7 +435,7 @@ export class MarkdownParser {
     contentHtml: string,
     markdown: string,
     metadata: ContentMetadata,
-    opts: Required<MarkdownOptions>,
+    opts: NormalizedMarkdownOptions,
     readabilitySuccess: boolean,
     startTime: number,
   ): MarkdownResult {
@@ -400,6 +474,7 @@ export class MarkdownParser {
         readabilitySuccess,
         imageCount,
         linkCount,
+        estimatedTokens: estimateTokens(markdown),
       },
     };
   }
@@ -530,7 +605,7 @@ export class MarkdownParser {
 
   private filterContent(
     html: string,
-    options: Required<MarkdownOptions>,
+    options: NormalizedMarkdownOptions,
   ): string {
     const $ = cheerio.load(html);
 
@@ -555,9 +630,9 @@ export class MarkdownParser {
     return $.html();
   }
 
-  private setupLLMRules(): void {
+  private setupLLMRules(turndown: TurndownService): void {
     // Custom rule for better table formatting
-    this.turndown.addRule("tables", {
+    turndown.addRule("tables", {
       filter: "table",
       replacement: (_content, node) => {
         return this.convertTableToMarkdown(node as TurndownNode);
@@ -565,7 +640,7 @@ export class MarkdownParser {
     });
 
     // Custom rule for code blocks with language detection
-    this.turndown.addRule("codeBlocks", {
+    turndown.addRule("codeBlocks", {
       filter: (node: TurndownNode) => {
         return node.nodeName === "PRE" && node.querySelector?.("code") !== null;
       },
@@ -585,7 +660,7 @@ export class MarkdownParser {
     });
 
     // Custom rule for better image handling with alt text
-    this.turndown.addRule("images", {
+    turndown.addRule("images", {
       filter: "img",
       replacement: (_content, node: TurndownNode) => {
         const alt = node.alt || "Image";
@@ -602,7 +677,7 @@ export class MarkdownParser {
     });
 
     // Custom rule for blockquotes with better formatting
-    this.turndown.addRule("blockquotes", {
+    turndown.addRule("blockquotes", {
       filter: "blockquote",
       replacement: (_content, node: TurndownNode) => {
         const text = node.textContent || "";
@@ -612,7 +687,7 @@ export class MarkdownParser {
     });
 
     // Remove empty paragraphs and whitespace-only elements
-    this.turndown.addRule("removeEmpty", {
+    turndown.addRule("removeEmpty", {
       filter: (node: TurndownNode) => {
         return (
           ["P", "DIV", "SPAN"].includes(node.nodeName.toUpperCase()) &&
@@ -688,9 +763,12 @@ export class MarkdownParser {
     return `${markdown}\n`;
   }
 
-  private applyCustomRules(rules: TurndownRule[]): void {
+  private applyCustomRules(
+    turndown: TurndownService,
+    rules: TurndownRule[],
+  ): void {
     rules.forEach((rule) => {
-      this.turndown.addRule(rule.name, {
+      turndown.addRule(rule.name, {
         filter: rule.filter as unknown as TurndownService.Filter,
         replacement: rule.replacement as TurndownService.ReplacementFunction,
       });
@@ -813,7 +891,7 @@ export class MarkdownParser {
 
   private normalizeOptions(
     options: MarkdownOptions,
-  ): Required<MarkdownOptions> {
+  ): NormalizedMarkdownOptions {
     return {
       // Core options
       extractContent: options.extractContent ?? true,
@@ -834,17 +912,19 @@ export class MarkdownParser {
       maxRedirects: options.maxRedirects ?? 5,
       headers: options.headers,
       userAgent: options.userAgent,
+      maxBytes: options.maxBytes,
 
       // LLM options
       useLLM: options.useLLM ?? false,
+      llm: options.llm,
       llmModelPath: options.llmModelPath,
       llmTemperature: options.llmTemperature ?? 0.1,
-      llmMaxTokens: options.llmMaxTokens ?? 512000,
+      llmMaxTokens: options.llmMaxTokens ?? 8192,
       llmFallback: options.llmFallback ?? true,
       onLLMEvent: options.onLLMEvent,
       onDownloadProgress: options.onDownloadProgress,
       onModelStatus: options.onModelStatus,
       onConversionProgress: options.onConversionProgress,
-    } as Required<MarkdownOptions>;
+    };
   }
 }

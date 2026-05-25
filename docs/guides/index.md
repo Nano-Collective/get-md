@@ -10,5 +10,6 @@ Detailed walkthroughs for getting the most out of get-md.
 
 ## In This Section
 
-- [LLM Conversion](llm-conversion.md) — Using the optional AI model for higher quality Markdown output
+- [LLM Conversion](llm-conversion.md) — Using the optional local AI model (ReaderLM-v2) for higher quality Markdown output
+- [Remote LLM Providers](remote-llm.md) — Pluggable backend: point get-md at Ollama, OpenRouter, Anthropic, Google, or any OpenAI-compatible endpoint
 - [React Native](react-native.md) — Using get-md in React Native apps

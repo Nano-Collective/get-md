@@ -322,8 +322,8 @@ test("LLMConverter: temperature defaults are reasonable", (t) => {
 });
 
 test("LLMConverter: maxTokens defaults are reasonable", (t) => {
-  // Default maxTokens should be high (512000) to handle long documents
-  // We can't directly test the default, but we can verify the class accepts it
+  // Default maxTokens (8192) matches Qwen2.5's commonly-available context
+  // and stays well within local llama.cpp memory budgets.
   const converter = createLLMConverter({
     modelPath: "/path/to/model.gguf",
     // Not specifying maxTokens - should use default

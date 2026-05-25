@@ -2,6 +2,7 @@
 
 // src/cli.ts
 
+import { readFileSync } from "node:fs";
 import fs from "node:fs/promises";
 import readline from "node:readline";
 import { Presets, SingleBar } from "cli-progress";
@@ -13,7 +14,12 @@ import {
   getLLMModelInfo,
   removeLLMModel,
 } from "./index.js";
-import type { LLMEvent, MarkdownOptions } from "./types.js";
+import type {
+  LLMEvent,
+  LlmConfig,
+  MarkdownOptions,
+  SdkProvider,
+} from "./types.js";
 import {
   findConfigPath,
   loadConfig,
@@ -34,6 +40,11 @@ interface CliOptions {
   useLlm?: boolean;
   llmModelPath?: string;
   llmTemperature?: string;
+  // Pluggable LLM backend
+  llmProvider?: string;
+  llmBaseUrl?: string;
+  llmModel?: string;
+  llmApiKey?: string;
   // Model management
   downloadModel?: boolean;
   modelInfo?: boolean;
@@ -44,16 +55,20 @@ interface CliOptions {
   showConfig?: boolean;
   // Comparison mode
   compare?: boolean;
+  // Output format
+  json?: boolean;
 }
+
+const pkg = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf-8"),
+) as { version: string };
 
 const program = new Command();
 
 program
   .name("get-md")
-  .description(
-    "Convert HTML to LLM-optimized Markdown or extract structured JSON",
-  )
-  .version("1.0.0");
+  .description("Convert HTML to LLM-optimized Markdown")
+  .version(pkg.version);
 
 // Main conversion command
 program
@@ -71,6 +86,20 @@ program
   .option("--use-llm", "Use LLM for higher quality HTML to Markdown conversion")
   .option("--llm-model-path <path>", "Custom path to LLM model file")
   .option("--llm-temperature <n>", "LLM temperature (default: 0.1)")
+  // Pluggable LLM backend (override config file)
+  .option(
+    "--llm-provider <name>",
+    "LLM provider: openai-compatible | anthropic | google | local-llama (default: local-llama)",
+  )
+  .option(
+    "--llm-base-url <url>",
+    "Base URL for the LLM provider (required for openai-compatible)",
+  )
+  .option("--llm-model <id>", "Model identifier for the LLM provider")
+  .option(
+    "--llm-api-key <key>",
+    "API key for the LLM provider (prefer env vars + config file)",
+  )
   // Model management commands
   .option("--download-model", "Download the LLM model")
   .option("--model-info", "Show LLM model information and status")
@@ -81,6 +110,11 @@ program
   .option("--show-config", "Show current configuration and exit")
   // Comparison mode
   .option("--compare", "Compare Turndown vs LLM conversion side-by-side")
+  // Output format
+  .option(
+    "--json",
+    "Output the full result as JSON (markdown + metadata + stats) instead of just the markdown body",
+  )
   .action(async (input: string | undefined, options: CliOptions) => {
     try {
       // Handle model management commands first
@@ -182,6 +216,8 @@ async function handleMarkdownConversion(
     llmTemperature: options.llmTemperature
       ? parseFloat(options.llmTemperature)
       : undefined,
+    // Pluggable LLM backend from CLI flags
+    llm: buildCliLlmConfig(options),
     // Event callbacks for CLI feedback - always show progress for LLM since it can be slow
     onLLMEvent: options.useLlm
       ? options.verbose
@@ -193,8 +229,11 @@ async function handleMarkdownConversion(
   // Merge config with CLI options (CLI takes precedence)
   const conversionOptions = mergeConfigWithOptions(fileConfig, cliOptions);
 
-  // Check if LLM mode is requested (from config or CLI)
-  if (conversionOptions.useLLM) {
+  // For the local-llama path, prompt to download the model if it's missing.
+  // Remote providers don't need a local file — skip the check for those.
+  const resolvedProvider = conversionOptions.llm?.sdkProvider ?? "local-llama";
+
+  if (conversionOptions.useLLM && resolvedProvider === "local-llama") {
     // Check if model is available
     const status = await checkLLMModel({
       modelPath: conversionOptions.llmModelPath,
@@ -203,7 +242,7 @@ async function handleMarkdownConversion(
     if (!status.available) {
       // Prompt user to download
       const shouldDownload = await promptYesNo(
-        "LLM model not found. Download ReaderLM-v2 (986MB)?",
+        "LLM model not found. Download ReaderLM-v2 (~1.12GB)?",
       );
 
       if (shouldDownload) {
@@ -217,9 +256,15 @@ async function handleMarkdownConversion(
 
   const result = await convertToMarkdown(html, conversionOptions);
 
+  // JSON mode emits the full result (markdown + metadata + stats) so the
+  // output is pipeable into `jq` and other structured tooling.
+  const payload = options.json
+    ? JSON.stringify(result, null, 2)
+    : result.markdown;
+
   // Write output
   if (options.output) {
-    await fs.writeFile(options.output, result.markdown, "utf-8");
+    await fs.writeFile(options.output, payload, "utf-8");
     if (process.stdout.isTTY) {
       console.error(`✓ Written to ${options.output}`);
       if (options.verbose) {
@@ -229,7 +274,7 @@ async function handleMarkdownConversion(
       }
     }
   } else {
-    console.log(result.markdown);
+    console.log(payload);
   }
 }
 
@@ -344,7 +389,7 @@ async function handleComparisonMode(
 
   if (!status.available) {
     const shouldDownload = await promptYesNo(
-      "LLM model not found. Download ReaderLM-v2 (986MB) to run comparison?",
+      "LLM model not found. Download ReaderLM-v2 (~1.12GB) to run comparison?",
     );
 
     if (shouldDownload) {
@@ -478,12 +523,25 @@ function handleShowConfig(configPath?: string): void {
   try {
     const config = loadConfig();
     console.log("\nLoaded configuration:");
-    console.log(JSON.stringify(config, null, 2));
+    console.log(JSON.stringify(redactSecrets(config), null, 2));
   } catch (error) {
     console.error(
       `\nError loading config: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+}
+
+/**
+ * Redact obvious secrets before printing a config blob to stdout. Currently
+ * just the LLM apiKey — the only documented secret in the config schema.
+ */
+function redactSecrets<T>(config: T): T {
+  // Cheap structural copy + walk; the config schema is small.
+  const cloned = JSON.parse(JSON.stringify(config));
+  if (cloned?.llm?.apiKey && typeof cloned.llm.apiKey === "string") {
+    cloned.llm.apiKey = "[REDACTED]";
+  }
+  return cloned;
 }
 
 // ============================================================================
@@ -496,6 +554,65 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024 * 1024)
     return `${(bytes / (1024 * 1024)).toFixed(0)}MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)}GB`;
+}
+
+const VALID_CLI_PROVIDERS: readonly SdkProvider[] = [
+  "openai-compatible",
+  "anthropic",
+  "google",
+  "local-llama",
+];
+
+/**
+ * Translate the pluggable-LLM CLI flags into a MarkdownOptions.llm block.
+ * Returns undefined if no provider-related flag was passed, in which case
+ * the config-file value (if any) wins.
+ */
+function buildCliLlmConfig(options: CliOptions): LlmConfig | undefined {
+  const provider = options.llmProvider;
+  if (
+    !provider &&
+    !options.llmBaseUrl &&
+    !options.llmModel &&
+    !options.llmApiKey
+  ) {
+    return undefined;
+  }
+
+  // If a non-provider LLM flag is passed without --llm-provider, assume
+  // openai-compatible since that's the most-used remote backend.
+  const sdkProvider: SdkProvider =
+    (provider as SdkProvider | undefined) ?? "openai-compatible";
+
+  if (!VALID_CLI_PROVIDERS.includes(sdkProvider)) {
+    throw new Error(
+      `--llm-provider must be one of: ${VALID_CLI_PROVIDERS.join(", ")}`,
+    );
+  }
+
+  if (sdkProvider === "local-llama") {
+    return {
+      sdkProvider: "local-llama",
+      ...(options.llmModelPath ? { modelPath: options.llmModelPath } : {}),
+    };
+  }
+
+  if (!options.llmModel) {
+    throw new Error(
+      `--llm-model is required when --llm-provider is ${sdkProvider}`,
+    );
+  }
+  if (sdkProvider === "openai-compatible" && !options.llmBaseUrl) {
+    throw new Error(
+      "--llm-base-url is required when --llm-provider is openai-compatible",
+    );
+  }
+  return {
+    sdkProvider,
+    model: options.llmModel,
+    ...(options.llmBaseUrl ? { baseUrl: options.llmBaseUrl } : {}),
+    ...(options.llmApiKey ? { apiKey: options.llmApiKey } : {}),
+  };
 }
 
 async function promptYesNo(question: string): Promise<boolean> {

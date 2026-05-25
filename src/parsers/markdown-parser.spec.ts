@@ -770,3 +770,78 @@ Line 2">
     t.true(result.markdown.includes('"Title: With Colon"'));
   }
 });
+
+// ============================================================================
+// LLM dispatcher (pluggable backend) tests
+// ============================================================================
+
+test("dispatcher: routes opts.llm with sdkProvider=openai-compatible through remote converter", async (t) => {
+  // Mock fetch to assert the parser hit the remote path and not the
+  // local-llama path (which would try to load a GGUF model).
+  let calledRemote = false;
+  const originalFetch = global.fetch;
+  global.fetch = (async () => {
+    calledRemote = true;
+    const body = {
+      id: "x",
+      object: "chat.completion",
+      created: 0,
+      model: "test",
+      choices: [
+        {
+          index: 0,
+          message: { role: "assistant", content: "# Remote\n\nbody" },
+          finish_reason: "stop",
+        },
+      ],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    };
+    const bodyText = JSON.stringify(body);
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => body,
+      text: async () => bodyText,
+      body: null,
+      clone() {
+        return this as unknown as Response;
+      },
+    } as unknown as Response;
+  }) as typeof fetch;
+
+  try {
+    const parser = new MarkdownParser();
+    const result = await parser.convertAsync(SIMPLE_HTML, {
+      useLLM: true,
+      extractContent: false,
+      includeMeta: false,
+      llm: {
+        sdkProvider: "openai-compatible",
+        baseUrl: "https://example.test/v1",
+        apiKey: "sk-test",
+        model: "test-model",
+      },
+    });
+    t.true(calledRemote, "remote provider should have been invoked");
+    t.true(result.markdown.includes("Remote"));
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("dispatcher: legacy llmModelPath maps to local-llama (and falls back to Turndown when model missing)", async (t) => {
+  // No model installed in CI → local path raises "model not found" → with
+  // llmFallback=true (default), the parser should fall back to Turndown and
+  // still return reasonable markdown.
+  const parser = new MarkdownParser();
+  const result = await parser.convertAsync(SIMPLE_HTML, {
+    useLLM: true,
+    extractContent: false,
+    includeMeta: false,
+    llmModelPath: "/tmp/does-not-exist.gguf",
+  });
+  // Fallback should have produced Turndown output.
+  t.true(result.markdown.includes("Hello World"));
+});

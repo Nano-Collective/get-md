@@ -9,9 +9,11 @@ import type { Llama, LlamaContext, LlamaModel } from "node-llama-cpp";
 import type { LLMEventCallback } from "../types.js";
 import { loadNodeLlamaCpp } from "./load-llama.js";
 
-// Default conversion parameters
-const DEFAULT_TEMPERATURE = 0;
-const DEFAULT_MAX_TOKENS = 4096;
+// Default conversion parameters. Kept in sync with the public defaults in
+// `MarkdownOptions` (see src/types.ts) so callers using `createLLMConverter`
+// directly behave the same as callers using `convertToMarkdown`.
+const DEFAULT_TEMPERATURE = 0.1;
+const DEFAULT_MAX_TOKENS = 8192;
 
 /**
  * LLM Converter - handles HTML to Markdown conversion using a local LLM
@@ -80,9 +82,10 @@ export class LLMConverter {
         modelPath: this.modelPath,
       });
 
-      // Create context with generous token limit for long documents
+      // Cap context at Qwen2.5's native window (32K) to keep llama.cpp from
+      // allocating absurd amounts of RAM if a caller passes an inflated value.
       this.context = await this.model.createContext({
-        contextSize: Math.min(this.maxTokens, 8192), // Balance between capability and memory
+        contextSize: Math.min(this.maxTokens, 32768),
       });
 
       const loadTime = Date.now() - startTime;

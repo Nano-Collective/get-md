@@ -132,7 +132,7 @@ export interface LLMModelStatus {
   path?: string;
   /** Size of the model file in bytes */
   size?: number;
-  /** Human-readable size (e.g., "986MB") */
+  /** Human-readable size (e.g., "1.12GB") */
   sizeFormatted?: string;
   /** Model version identifier */
   version?: string;
@@ -171,6 +171,61 @@ export interface LLMModelVariant {
   /** Estimated RAM required */
   ramRequired: string;
 }
+
+// ============================================================================
+// Pluggable LLM Backend
+// ============================================================================
+
+/**
+ * SDK backend used to run LLM-powered HTML→Markdown conversion.
+ *
+ * - `openai-compatible` — covers Ollama, OpenRouter, Together, Groq, LM Studio,
+ *   the llama.cpp server, OpenAI itself, vLLM, etc. The default for remote.
+ * - `anthropic` — Claude API.
+ * - `google` — Gemini.
+ * - `local-llama` — local ReaderLM-v2 inference via `node-llama-cpp`.
+ *   This is the default if `useLLM: true` and no `llm` block is configured —
+ *   keeps the existing zero-API-key path working out of the box.
+ */
+export type SdkProvider =
+  | "openai-compatible"
+  | "anthropic"
+  | "google"
+  | "local-llama";
+
+/** Shared fields across every provider variant */
+interface LlmConfigBase {
+  /** Optional display name (e.g. "OpenRouter", "Ollama") */
+  name?: string;
+  /** Sampling temperature (default: 0.1) */
+  temperature?: number;
+  /** Max tokens for context (input + generation). Default: 8192 */
+  maxTokens?: number;
+}
+
+/** Local llama.cpp / ReaderLM-v2 configuration */
+export interface LocalLlamaConfig extends LlmConfigBase {
+  sdkProvider: "local-llama";
+  /** Override the GGUF path. Defaults to ~/.get-md/models/ReaderLM-v2.Q4_K_M.gguf */
+  modelPath?: string;
+}
+
+/** Configuration for any remote SDK provider (openai-compatible, anthropic, google) */
+export interface RemoteLlmConfig extends LlmConfigBase {
+  sdkProvider: "openai-compatible" | "anthropic" | "google";
+  /** Base URL for the provider API. Required for openai-compatible. */
+  baseUrl?: string;
+  /**
+   * API key. Supports `${ENV_VAR}` substitution when loaded from a config
+   * file so the key never lives in the file itself.
+   */
+  apiKey?: string;
+  /** Model identifier passed to the provider, e.g. `anthropic/claude-haiku-4.5` */
+  model: string;
+}
+
+/** Resolved LLM configuration — discriminated by sdkProvider */
+export type LlmConfig = LocalLlamaConfig | RemoteLlmConfig;
 
 // ============================================================================
 // Main Options Interface
@@ -226,20 +281,53 @@ export interface MarkdownOptions {
   /** User agent string for URL fetching */
   userAgent?: string;
 
+  /** Maximum response body size for URL fetches, in bytes (default: 10MB) */
+  maxBytes?: number;
+
   // ========================================================================
   // LLM Options
   // ========================================================================
 
+  /**
+   * Pluggable LLM backend configuration. When set, takes precedence over the
+   * legacy `llmModelPath` / `llmTemperature` / `llmMaxTokens` shorthand. If
+   * `useLLM` is true and `llm` is unset, get-md defaults to local ReaderLM-v2
+   * via `node-llama-cpp` — keeps the zero-API-key path working unchanged.
+   *
+   * @example
+   * ```ts
+   * // Remote provider (OpenAI-compatible, covers Ollama/OpenRouter/etc.)
+   * await convertToMarkdown(url, {
+   *   useLLM: true,
+   *   llm: {
+   *     sdkProvider: 'openai-compatible',
+   *     baseUrl: 'https://openrouter.ai/api/v1',
+   *     apiKey: process.env.OPENROUTER_API_KEY,
+   *     model: 'anthropic/claude-haiku-4.5',
+   *   },
+   * });
+   * ```
+   */
+  llm?: LlmConfig;
+
   /** Use LLM for HTML to Markdown conversion (default: false) */
   useLLM?: boolean;
 
-  /** Custom path to the LLM model file */
+  /**
+   * Custom path to the LLM model file. Legacy shorthand for
+   * `llm: { sdkProvider: 'local-llama', modelPath: ... }`.
+   */
   llmModelPath?: string;
 
   /** LLM temperature for generation (default: 0.1) */
   llmTemperature?: number;
 
-  /** Maximum tokens for LLM generation (default: 512000) */
+  /**
+   * Maximum tokens for the LLM context window (input + generation), in tokens.
+   * Defaults to 8192. The converter caps this at 32768 (Qwen2.5 native context)
+   * to prevent OOM on the local llama.cpp path; remote SDK providers honor the
+   * value directly.
+   */
   llmMaxTokens?: number;
 
   /** Fall back to Turndown if LLM fails (default: true) */
@@ -328,6 +416,13 @@ export interface ConversionStats {
 
   /** Number of links found */
   linkCount: number;
+
+  /**
+   * Estimated token count of the output markdown, using a chars/4 heuristic.
+   * Useful for LLM context budgeting. For an exact count, run the markdown
+   * through your target model's tokenizer.
+   */
+  estimatedTokens: number;
 }
 
 /** Options for URL fetching */
@@ -346,6 +441,13 @@ export interface FetchOptions {
 
   /** User agent string */
   userAgent?: string;
+
+  /**
+   * Maximum response body size in bytes (default: 10MB). The fetch is aborted
+   * with a clear error if the response exceeds this limit. Use Infinity to
+   * disable the cap (not recommended for untrusted URLs).
+   */
+  maxBytes?: number;
 }
 
 /** Custom Turndown rule */

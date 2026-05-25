@@ -3,7 +3,14 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { MarkdownOptions } from "../types.js";
+import type {
+  LlmConfig,
+  LocalLlamaConfig,
+  MarkdownOptions,
+  RemoteLlmConfig,
+  SdkProvider,
+} from "../types.js";
+import { substituteEnvVars } from "./env-substitution.js";
 
 /**
  * Configuration schema for .getmdrc or get-md.config.json
@@ -11,7 +18,13 @@ import type { MarkdownOptions } from "../types.js";
 export interface GetMdConfig {
   /** Use LLM for HTML to Markdown conversion */
   useLLM?: boolean;
-  /** Custom path to the LLM model file */
+  /**
+   * Pluggable LLM backend. Takes precedence over the legacy
+   * `llmModelPath`/`llmTemperature` shorthand. Supports `${ENV_VAR}` in
+   * string values so API keys can live in env vars rather than the file.
+   */
+  llm?: LlmConfig;
+  /** Custom path to the LLM model file (legacy shorthand for llm.modelPath) */
   llmModelPath?: string;
   /** LLM temperature for generation */
   llmTemperature?: number;
@@ -57,13 +70,16 @@ function findConfigInDir(dir: string): string | null {
 }
 
 /**
- * Load and parse a config file
+ * Load and parse a config file. Environment variable references like
+ * `${OPENROUTER_API_KEY}` are expanded before validation so secrets never
+ * need to live in the file itself.
  */
 function loadConfigFile(filePath: string): GetMdConfig {
   try {
     const content = fs.readFileSync(filePath, "utf-8");
-    const config = JSON.parse(content);
-    return validateConfig(config);
+    const rawConfig = JSON.parse(content);
+    const substituted = substituteEnvVars(rawConfig);
+    return validateConfig(substituted);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to load config from ${filePath}: ${message}`);
@@ -132,7 +148,125 @@ function validateConfig(config: unknown): GetMdConfig {
     result.maxLength = cfg.maxLength;
   }
 
+  if ("llm" in cfg) {
+    result.llm = validateLlmConfig(cfg.llm);
+  }
+
   return result;
+}
+
+const VALID_SDK_PROVIDERS: readonly SdkProvider[] = [
+  "openai-compatible",
+  "anthropic",
+  "google",
+  "local-llama",
+];
+
+function validateLlmConfig(raw: unknown): LlmConfig {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new Error('Config option "llm" must be an object');
+  }
+  const llm = raw as Record<string, unknown>;
+
+  const sdkProvider = llm.sdkProvider;
+  if (
+    typeof sdkProvider !== "string" ||
+    !VALID_SDK_PROVIDERS.includes(sdkProvider as SdkProvider)
+  ) {
+    throw new Error(
+      `Config option "llm.sdkProvider" must be one of: ${VALID_SDK_PROVIDERS.join(", ")}`,
+    );
+  }
+
+  // Shared optional fields — same rules across every provider.
+  const name = optionalString(llm, "llm.name");
+  const temperature = optionalNumber(llm, "llm.temperature", {
+    min: 0,
+    max: 2,
+  });
+  const maxTokens = optionalInteger(llm, "llm.maxTokens", { min: 1 });
+
+  if (sdkProvider === "local-llama") {
+    const modelPath = optionalString(llm, "llm.modelPath");
+    const local: LocalLlamaConfig = { sdkProvider: "local-llama" };
+    if (name !== undefined) local.name = name;
+    if (temperature !== undefined) local.temperature = temperature;
+    if (maxTokens !== undefined) local.maxTokens = maxTokens;
+    if (modelPath !== undefined) local.modelPath = modelPath;
+    return local;
+  }
+
+  // Remote providers require `model`.
+  if (typeof llm.model !== "string" || llm.model.length === 0) {
+    throw new Error(
+      `Config option "llm.model" is required for sdkProvider "${sdkProvider}"`,
+    );
+  }
+  const baseUrl = optionalString(llm, "llm.baseUrl");
+  const apiKey = optionalString(llm, "llm.apiKey");
+
+  if (sdkProvider === "openai-compatible" && !baseUrl) {
+    throw new Error(
+      'Config option "llm.baseUrl" is required for sdkProvider "openai-compatible"',
+    );
+  }
+
+  const remote: RemoteLlmConfig = {
+    sdkProvider: sdkProvider as RemoteLlmConfig["sdkProvider"],
+    model: llm.model,
+  };
+  if (name !== undefined) remote.name = name;
+  if (temperature !== undefined) remote.temperature = temperature;
+  if (maxTokens !== undefined) remote.maxTokens = maxTokens;
+  if (baseUrl !== undefined) remote.baseUrl = baseUrl;
+  if (apiKey !== undefined) remote.apiKey = apiKey;
+  return remote;
+}
+
+function optionalString(
+  obj: Record<string, unknown>,
+  fieldPath: string,
+): string | undefined {
+  const key = fieldPath.split(".").pop() as string;
+  if (!(key in obj)) return undefined;
+  const value = obj[key];
+  if (typeof value !== "string") {
+    throw new Error(`Config option "${fieldPath}" must be a string`);
+  }
+  return value;
+}
+
+function optionalNumber(
+  obj: Record<string, unknown>,
+  fieldPath: string,
+  bounds?: { min?: number; max?: number },
+): number | undefined {
+  const key = fieldPath.split(".").pop() as string;
+  if (!(key in obj)) return undefined;
+  const value = obj[key];
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`Config option "${fieldPath}" must be a number`);
+  }
+  if (bounds?.min !== undefined && value < bounds.min) {
+    throw new Error(`Config option "${fieldPath}" must be >= ${bounds.min}`);
+  }
+  if (bounds?.max !== undefined && value > bounds.max) {
+    throw new Error(`Config option "${fieldPath}" must be <= ${bounds.max}`);
+  }
+  return value;
+}
+
+function optionalInteger(
+  obj: Record<string, unknown>,
+  fieldPath: string,
+  bounds?: { min?: number; max?: number },
+): number | undefined {
+  const value = optionalNumber(obj, fieldPath, bounds);
+  if (value === undefined) return undefined;
+  if (!Number.isInteger(value)) {
+    throw new Error(`Config option "${fieldPath}" must be an integer`);
+  }
+  return value;
 }
 
 /**

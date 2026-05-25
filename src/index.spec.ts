@@ -544,6 +544,7 @@ test("types: MarkdownResult interface is exported", (t) => {
       readabilitySuccess: true,
       imageCount: 0,
       linkCount: 0,
+      estimatedTokens: 13,
     },
   };
 

@@ -281,7 +281,14 @@ test("CLI: handles missing input file gracefully", async (t) => {
 test("CLI: shows version with --version flag", async (t) => {
   const { stdout } = await runCli(["--version"]);
 
-  t.true(stdout.includes("1.0.0"));
+  // Asserts the version is read from package.json (not a hardcoded string),
+  // so this stays green across version bumps.
+  const { readFileSync } = await import("node:fs");
+  const pkg = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf-8"),
+  ) as { version: string };
+
+  t.true(stdout.includes(pkg.version));
 });
 
 test("CLI: shows help with --help flag", async (t) => {
@@ -575,5 +582,112 @@ test("CLI: --compare with file falls back when model missing", async (t) => {
     );
   } finally {
     await cleanupTempFile(inputFile);
+  }
+});
+
+test("CLI: --json outputs full result as parseable JSON", async (t) => {
+  const { stdout, exitCode } = await runCli(["--json"], SIMPLE_HTML);
+
+  t.is(exitCode, 0);
+  const parsed = JSON.parse(stdout);
+  t.is(typeof parsed.markdown, "string");
+  t.is(typeof parsed.metadata, "object");
+  t.is(typeof parsed.stats, "object");
+  t.is(typeof parsed.stats.estimatedTokens, "number");
+  t.true(parsed.markdown.length > 0);
+});
+
+test("CLI: --json includes estimatedTokens in stats", async (t) => {
+  const { stdout } = await runCli(["--json"], SIMPLE_HTML);
+  const parsed = JSON.parse(stdout);
+  t.true(parsed.stats.estimatedTokens > 0);
+});
+
+test("CLI: --json writes JSON to output file when -o is given", async (t) => {
+  const tmpDir = await fs.mkdtemp(path.join(process.cwd(), "tmp-test-"));
+  const outFile = path.join(tmpDir, "out.json");
+
+  try {
+    const { exitCode } = await runCli(["--json", "-o", outFile], SIMPLE_HTML);
+    t.is(exitCode, 0);
+    const fileContents = await fs.readFile(outFile, "utf-8");
+    const parsed = JSON.parse(fileContents);
+    t.is(typeof parsed.markdown, "string");
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("CLI: --help lists --json option", async (t) => {
+  const { stdout } = await runCli(["--help"]);
+  t.true(stdout.includes("--json"));
+});
+
+// ============================================================================
+// Pluggable LLM backend CLI flag tests
+// ============================================================================
+
+test("CLI: --help lists --llm-provider option", async (t) => {
+  const { stdout } = await runCli(["--help"]);
+  t.true(stdout.includes("--llm-provider"));
+  t.true(stdout.includes("--llm-base-url"));
+  t.true(stdout.includes("--llm-model"));
+  t.true(stdout.includes("--llm-api-key"));
+});
+
+test("CLI: --llm-provider openai-compatible without --llm-model errors clearly", async (t) => {
+  const { stderr, exitCode } = await runCli(
+    ["--use-llm", "--llm-provider", "openai-compatible"],
+    SIMPLE_HTML,
+  );
+  t.not(exitCode, 0);
+  t.true(stderr.includes("--llm-model is required"));
+});
+
+test("CLI: --llm-provider openai-compatible without --llm-base-url errors clearly", async (t) => {
+  const { stderr, exitCode } = await runCli(
+    [
+      "--use-llm",
+      "--llm-provider",
+      "openai-compatible",
+      "--llm-model",
+      "x/y",
+    ],
+    SIMPLE_HTML,
+  );
+  t.not(exitCode, 0);
+  t.true(stderr.includes("--llm-base-url is required"));
+});
+
+test("CLI: --llm-provider rejects unknown providers", async (t) => {
+  const { stderr, exitCode } = await runCli(
+    ["--use-llm", "--llm-provider", "made-up"],
+    SIMPLE_HTML,
+  );
+  t.not(exitCode, 0);
+  t.true(stderr.includes("--llm-provider must be one of"));
+});
+
+test("CLI: --show-config redacts llm.apiKey", async (t) => {
+  // Write a config file in CWD, run --show-config, then clean up.
+  const cfgPath = path.join(process.cwd(), ".getmdrc.json");
+  await fs.writeFile(
+    cfgPath,
+    JSON.stringify({
+      llm: {
+        sdkProvider: "openai-compatible",
+        baseUrl: "https://example.test/v1",
+        apiKey: "sk-super-secret",
+        model: "test/model",
+      },
+    }),
+    "utf-8",
+  );
+  try {
+    const { stdout } = await runCli(["--show-config"]);
+    t.true(stdout.includes("[REDACTED]"));
+    t.false(stdout.includes("sk-super-secret"));
+  } finally {
+    await fs.unlink(cfgPath);
   }
 });

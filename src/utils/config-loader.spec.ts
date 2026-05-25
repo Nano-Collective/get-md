@@ -519,3 +519,140 @@ test("types: GetMdConfig allows partial config", (t) => {
   t.is(config.useLLM, true);
   t.is(config.llmModelPath, undefined);
 });
+
+// ============================================================================
+// llm block tests
+// ============================================================================
+
+test.beforeEach(() => {
+  delete process.env.GETMD_TEST_OPENROUTER_KEY;
+});
+
+test("loadConfigFromFile: parses local-llama llm block", async (t) => {
+  const file = await createConfigFile(TEST_CONFIG_DIR, "local.json", {
+    llm: {
+      sdkProvider: "local-llama",
+      modelPath: "/custom/path.gguf",
+      temperature: 0.2,
+      maxTokens: 4096,
+    },
+  });
+
+  const cfg = loadConfigFromFile(file);
+  t.truthy(cfg.llm);
+  t.is(cfg.llm?.sdkProvider, "local-llama");
+  if (cfg.llm?.sdkProvider === "local-llama") {
+    t.is(cfg.llm.modelPath, "/custom/path.gguf");
+    t.is(cfg.llm.temperature, 0.2);
+    t.is(cfg.llm.maxTokens, 4096);
+  }
+});
+
+test("loadConfigFromFile: parses openai-compatible llm block", async (t) => {
+  const file = await createConfigFile(TEST_CONFIG_DIR, "openai.json", {
+    llm: {
+      sdkProvider: "openai-compatible",
+      name: "OpenRouter",
+      baseUrl: "https://openrouter.ai/api/v1",
+      apiKey: "sk-test",
+      model: "anthropic/claude-haiku-4.5",
+    },
+  });
+
+  const cfg = loadConfigFromFile(file);
+  if (cfg.llm?.sdkProvider !== "openai-compatible") {
+    t.fail("expected openai-compatible config");
+    return;
+  }
+  t.is(cfg.llm.name, "OpenRouter");
+  t.is(cfg.llm.baseUrl, "https://openrouter.ai/api/v1");
+  t.is(cfg.llm.apiKey, "sk-test");
+  t.is(cfg.llm.model, "anthropic/claude-haiku-4.5");
+});
+
+test("loadConfigFromFile: expands ${ENV_VAR} in apiKey", async (t) => {
+  process.env.GETMD_TEST_OPENROUTER_KEY = "sk-from-env";
+  const file = await createConfigFile(TEST_CONFIG_DIR, "env.json", {
+    llm: {
+      sdkProvider: "openai-compatible",
+      baseUrl: "https://openrouter.ai/api/v1",
+      apiKey: "${GETMD_TEST_OPENROUTER_KEY}",
+      model: "anthropic/claude-haiku-4.5",
+    },
+  });
+
+  const cfg = loadConfigFromFile(file);
+  if (cfg.llm?.sdkProvider !== "openai-compatible") {
+    t.fail("expected openai-compatible config");
+    return;
+  }
+  t.is(cfg.llm.apiKey, "sk-from-env");
+});
+
+test("loadConfigFromFile: parses anthropic llm block", async (t) => {
+  const file = await createConfigFile(TEST_CONFIG_DIR, "anthropic.json", {
+    llm: {
+      sdkProvider: "anthropic",
+      apiKey: "sk-ant-test",
+      model: "claude-haiku-4-5",
+    },
+  });
+
+  const cfg = loadConfigFromFile(file);
+  t.is(cfg.llm?.sdkProvider, "anthropic");
+});
+
+test("loadConfigFromFile: throws when llm is not an object", async (t) => {
+  const file = await createConfigFile(TEST_CONFIG_DIR, "bad.json", {
+    llm: "not an object",
+  });
+  t.throws(() => loadConfigFromFile(file), {
+    message: /llm.*must be an object/,
+  });
+});
+
+test("loadConfigFromFile: throws when sdkProvider is invalid", async (t) => {
+  const file = await createConfigFile(TEST_CONFIG_DIR, "bad-provider.json", {
+    llm: { sdkProvider: "not-a-provider", model: "x" },
+  });
+  t.throws(() => loadConfigFromFile(file), {
+    message: /llm\.sdkProvider.*must be one of/,
+  });
+});
+
+test("loadConfigFromFile: throws when remote provider has no model", async (t) => {
+  const file = await createConfigFile(TEST_CONFIG_DIR, "no-model.json", {
+    llm: {
+      sdkProvider: "openai-compatible",
+      baseUrl: "https://x.example",
+    },
+  });
+  t.throws(() => loadConfigFromFile(file), {
+    message: /llm\.model.*is required/,
+  });
+});
+
+test("loadConfigFromFile: throws when openai-compatible has no baseUrl", async (t) => {
+  const file = await createConfigFile(TEST_CONFIG_DIR, "no-base.json", {
+    llm: {
+      sdkProvider: "openai-compatible",
+      model: "some-model",
+    },
+  });
+  t.throws(() => loadConfigFromFile(file), {
+    message: /llm\.baseUrl.*is required/,
+  });
+});
+
+test("loadConfigFromFile: throws when temperature is out of range", async (t) => {
+  const file = await createConfigFile(TEST_CONFIG_DIR, "bad-temp.json", {
+    llm: {
+      sdkProvider: "anthropic",
+      model: "claude-haiku-4-5",
+      temperature: 5,
+    },
+  });
+  t.throws(() => loadConfigFromFile(file), {
+    message: /llm\.temperature.*<=/,
+  });
+});

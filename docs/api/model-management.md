@@ -17,7 +17,7 @@ import { checkLLMModel } from "@nanocollective/get-md";
 
 const status = await checkLLMModel();
 console.log(status.available);      // true/false
-console.log(status.sizeFormatted);  // "986MB"
+console.log(status.sizeFormatted);  // "1.12GB"
 ```
 
 ### Returns
@@ -34,7 +34,7 @@ interface LLMModelStatus {
 
 ## downloadLLMModel()
 
-Download the LLM model (~986MB, one-time download).
+Download the LLM model (~1.12GB, one-time download).
 
 ```typescript
 import { downloadLLMModel } from "@nanocollective/get-md";
@@ -77,9 +77,9 @@ await removeLLMModel();
 | Model | ReaderLM-v2 |
 | Format | GGUF |
 | Quantization | Q4_K_M |
-| Size | ~986MB |
+| Size | ~1.12GB |
 | Languages | 29 |
-| Max Tokens | 512,000 |
+| Max Tokens | 32,768 (Qwen2.5 native context) |
 | Storage Path | `~/.get-md/models/` |
 
 ## See Also
