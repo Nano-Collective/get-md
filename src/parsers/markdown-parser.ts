@@ -648,10 +648,16 @@ export class MarkdownParser {
         const code = node.querySelector?.("code");
         if (!code) return "";
 
-        // Detect language from class name
+        // Detect language from class name — try multiple common patterns:
+        //   language-js, lang-js, hljs-js, brush: js, data-language="js"
         const className = code.className || "";
-        const langMatch = className.match(/language-(\w+)|lang-(\w+)/);
-        const language = langMatch?.[1] || langMatch?.[2] || "";
+        const langMatch =
+          className.match(/language-(\w+)/) ||
+          className.match(/lang-(\w+)/) ||
+          className.match(/hljs-(\w+)/) ||
+          className.match(/brush:\s*(\w+)/) ||
+          className.match(/^(\w+)$/); // single-word class like "js"
+        const language = langMatch?.[1] || "";
 
         const codeContent = code.textContent || "";
 

@@ -60,19 +60,15 @@ function removeNoiseElements($: cheerio.CheerioAPI): void {
   // Remove by common class/id patterns
   // More specific selectors to avoid false positives
   const noiseSelectors = [
-    // Navigation elements (but not components that just have 'nav' in the name)
-    'nav[role="navigation"]',
-    "nav.navbar",
-    "nav.nav-menu",
+    // Navigation elements — remove site-level nav/header/footer but preserve
+    // article-internal ones (e.g. <nav> inside <article> for table of contents)
     "div.navbar",
     'div[role="navigation"]',
     "#navigation",
     "#nav",
     "#menu",
 
-    // Headers/Footers - only actual header/footer elements or very specific classes
-    'header[role="banner"]',
-    'footer[role="contentinfo"]',
+    // Headers/Footers — site-level only (not inside article/main)
     "#header",
     "#footer",
     "div.site-header",
@@ -85,6 +81,50 @@ function removeNoiseElements($: cheerio.CheerioAPI): void {
     "div.sidebar",
     'div[role="complementary"]',
     "#sidebar",
+
+    // MDN-specific sidebar nav tree
+    ".nav-main",
+    ".sidebar-inner",
+    "#sidebar-inner",
+    ".page-navigation",
+    ".document-toc",
+    ".breadcrumb",
+    "nav.breadcrumb",
+    ".breadcrumbs-bar",
+    ".breadcrumbs",
+    ".mw-jump-link",
+    ".mw-portlet",
+    "#p-navigation",
+    "#p-tb",
+    ".vector-menu",
+    ".mw-sidebar",
+    "#mw-panel",
+    ".navigation",
+    ".layout__left-sidebar",
+    ".left-sidebar",
+    ".left-sidebar__header",
+    ".left-sidebar__content",
+    ".layout__right-sidebar",
+    ".reference-toc",
+    ".reference-layout__toc",
+
+    // Wikipedia-specific nav
+    "#mw-head",
+    "#mw-page-base",
+    "#mw-navigation",
+    ".mw-body",
+    "#contentSub",
+    "#siteSub",
+    "#jump-to-nav",
+    ".mw-editsection",
+    "#toc",
+    ".toc",
+    "#catlinks",
+    ".catlinks",
+    ".mw-normal-catlinks",
+
+    // Generic nav/footer classes used by many sites
+    '[class*="breadcrumb"]',
 
     // Ads
     ".ad",
@@ -127,9 +167,32 @@ function removeNoiseElements($: cheerio.CheerioAPI): void {
     ".newsletter",
     ".subscribe",
     ".signup-form",
+
+    // Skip-to-content / jump links (accessibility noise)
+    'a[href="#content"]',
+    'a[href="#main"]',
+    'a[href="#main-content"]',
+    'a[href="#search"]',
+    ".skip-link",
+    ".skip-to-content",
+    ".visually-hidden",
+    ".sr-only",
   ];
 
   $(noiseSelectors.join(",")).remove();
+
+  // Remove site-level nav/header/footer that are NOT inside <article> or <main>
+  // This catches sites like MDN that use <nav>/<header>/<footer> without ARIA roles
+  // but still have the site chrome outside the main content area
+  $("nav, header, footer").each((_, el) => {
+    const $el = $(el);
+    // Skip if inside article or main (these are content-bearing)
+    if ($el.closest("article, main").length > 0) return;
+    // Skip if it has a role that indicates it's content (not navigation)
+    const role = $el.attr("role");
+    if (role && !["navigation", "banner", "contentinfo"].includes(role)) return;
+    $el.remove();
+  });
 
   // Remove elements with common noise text
   // But ONLY if they are small elements (to avoid removing large content blocks

@@ -33,8 +33,9 @@ function extractTitle($: cheerio.CheerioAPI): string | undefined {
   const twitterTitle = $('meta[name="twitter:title"]').attr("content");
   if (twitterTitle) return twitterTitle;
 
-  // Try regular title tag
-  const titleTag = $("title").text();
+  // Try regular title tag — use .first() to avoid concatenating multiple title tags
+  // (some pages have multiple <title> elements e.g. MDN has 4)
+  const titleTag = $("title").first().text();
   if (titleTag) return titleTag.trim();
 
   // Try first h1
@@ -83,13 +84,41 @@ function extractExcerpt($: cheerio.CheerioAPI): string | undefined {
 function extractSiteName($: cheerio.CheerioAPI): string | undefined {
   // Try Open Graph
   const ogSite = $('meta[property="og:site_name"]').attr("content");
-  if (ogSite) return ogSite;
+  if (ogSite) return deduplicateSiteName(ogSite);
 
   // Try application name
   const appName = $('meta[name="application-name"]').attr("content");
-  if (appName) return appName;
+  if (appName) return deduplicateSiteName(appName);
 
   return undefined;
+}
+
+/**
+ * Deduplicate repeated site name tokens.
+ * Some sites (notably MDN) have meta tags like "MDNMDNMDN Mozilla"
+ * where the name is repeated. Collapse runs of the same token.
+ */
+function deduplicateSiteName(raw: string): string {
+  // Split on whitespace and collapse consecutive duplicate tokens
+  const tokens = raw.trim().split(/\s+/);
+  if (tokens.length <= 1) return raw.trim();
+
+  const collapsed: string[] = [tokens[0]];
+  for (let i = 1; i < tokens.length; i++) {
+    if (tokens[i] !== tokens[i - 1]) {
+      collapsed.push(tokens[i]);
+    }
+  }
+
+  // Also handle the case where the name is repeated without spaces
+  // e.g. "MDNMDNMDN Mozilla" -> detect the repeated prefix
+  const result = collapsed.join(" ");
+  const prefixMatch = result.match(/^(.{2,}?)\1{2,}\s/);
+  if (prefixMatch) {
+    return `${prefixMatch[1]} ${result.slice(prefixMatch[0].length).trim()}`.trim();
+  }
+
+  return result;
 }
 
 function extractPublishedTime($: cheerio.CheerioAPI): string | undefined {
