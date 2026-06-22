@@ -34,6 +34,39 @@ import {
   uniqueFilenameForUrl,
 } from "./utils/filename.js";
 
+/**
+ * Detect the input type from a file path or content string.
+ * URLs and `.html`/`.htm` files are "html".
+ * `.md`/`.markdown` files are "markdown".
+ * `.pdf`/`.docx` are "unsupported" (clear error).
+ * Anything else defaults to "html" (backward compatible).
+ */
+export function detectInputType(input: string): "html" | "markdown" | "unsupported" {
+  // URLs are always HTML (fetched as HTML)
+  if (input.startsWith("http://") || input.startsWith("https://")) {
+    return "html";
+  }
+
+  const ext = path.extname(input).toLowerCase();
+
+  switch (ext) {
+    case ".md":
+    case ".markdown":
+      return "markdown";
+    case ".html":
+    case ".htm":
+    case ".xhtml":
+      return "html";
+    case ".pdf":
+    case ".docx":
+    case ".doc":
+      return "unsupported";
+    default:
+      // No recognized extension — treat as HTML (backward compatible)
+      return "html";
+  }
+}
+
 interface CliOptions {
   output?: string;
   extract: boolean;
@@ -256,8 +289,15 @@ program
         return;
       }
 
-      // Get input HTML
-      const html = await getInput(input);
+      // Get input content + detected type
+      const { content: html, inputType } = await getInput(input);
+
+      // When auto-detection identifies markdown, route through the markdown
+      // optimization pipeline directly — no HTML conversion needed.
+      if (inputType === "markdown") {
+        await handleMarkdownInput(html, input, options);
+        return;
+      }
 
       // When the positional arg was a URL, treat it as the implicit
       // --base-url so downstream things (relative link/image resolution,
@@ -284,7 +324,18 @@ program
     }
   });
 
-async function getInput(input?: string): Promise<string> {
+async function getInput(input?: string): Promise<{
+  content: string;
+  inputType: "html" | "markdown" | "unsupported";
+}> {
+  const inputType = detectInputType(input ?? "");
+
+  if (inputType === "unsupported") {
+    throw new Error(
+      `Unsupported input format: ${path.extname(input ?? "")}. Supported formats: .html, .htm, .md, .markdown, URLs`,
+    );
+  }
+
   // Read from URL
   if (input?.startsWith("http")) {
     const response = await fetch(input, {
@@ -293,26 +344,100 @@ async function getInput(input?: string): Promise<string> {
     if (!response.ok) {
       throw new Error(`Failed to fetch ${input}: ${response.statusText}`);
     }
-    return await response.text();
+    return { content: await response.text(), inputType };
   }
 
   // Read from file
   if (input && input !== "-") {
-    return await fs.readFile(input, "utf-8");
+    return {
+      content: await fs.readFile(input, "utf-8"),
+      inputType,
+    };
   }
 
-  // Read from stdin
+  // Read from stdin — always treat as HTML (no extension hint available)
   if (!process.stdin.isTTY) {
     const chunks: Buffer[] = [];
     for await (const chunk of process.stdin) {
       chunks.push(Buffer.from(chunk as Uint8Array));
     }
-    return Buffer.concat(chunks).toString("utf-8");
+    return {
+      content: Buffer.concat(chunks).toString("utf-8"),
+      inputType: "html",
+    };
   }
 
   throw new Error(
     "No input provided. Provide a file path, URL, or pipe to stdin.",
   );
+}
+
+async function handleMarkdownInput(
+  markdown: string,
+  _inputPath: string | undefined,
+  options: CliOptions,
+): Promise<void> {
+  const fileConfig = loadConfig();
+
+  // Build options — markdown input skips HTML-specific options
+  // (extractContent, includeImages, includeLinks, includeTables)
+  // since those only apply to HTML→Markdown conversion.
+  const cliOptions: MarkdownOptions = {
+    // Content extraction and HTML-specific filters are N/A for markdown input
+    extractContent: false,
+    includeMeta: options.frontmatter,
+    includeImages: false,
+    includeLinks: false,
+    includeTables: false,
+    maxLength: parseInt(options.maxLength, 10),
+    baseUrl: options.baseUrl,
+    // Signal to convertToMarkdown to skip HTML parsing
+    inputType: "markdown",
+    // LLM options from CLI
+    useLLM: false,
+    llmModelPath: options.llmModelPath,
+    llmTemperature: options.llmTemperature
+      ? parseFloat(options.llmTemperature)
+      : undefined,
+    // Pluggable LLM backend from CLI flags
+    llm: buildCliLlmConfig(options),
+    // HTTP retry + cache flags
+    ...buildCliFetchOptions(options),
+    // Image localization
+    downloadImages: options.downloadImages,
+    outputPath: options.output,
+    // Event callbacks for CLI feedback
+    onLLMEvent: options.useLlm
+      ? options.verbose
+        ? createLLMEventHandler()
+        : createMinimalLLMEventHandler()
+      : undefined,
+  };
+
+  // Merge config with CLI options (CLI takes precedence)
+  const conversionOptions = mergeConfigWithOptions(fileConfig, cliOptions);
+
+  const result = await convertToMarkdown(markdown, conversionOptions);
+
+  // JSON mode emits the full result
+  const payload = options.json
+    ? JSON.stringify(result, null, 2)
+    : result.markdown;
+
+  // Write output
+  if (options.output) {
+    await writeFileEnsureDir(options.output, payload);
+    if (process.stdout.isTTY) {
+      console.error(`✓ Written to ${options.output}`);
+      if (options.verbose) {
+        console.error(`  Input: ${result.stats.inputLength} chars`);
+        console.error(`  Output: ${result.stats.outputLength} chars`);
+        console.error(`  Time: ${result.stats.processingTime}ms`);
+      }
+    }
+  } else {
+    console.log(payload);
+  }
 }
 
 async function handleMarkdownConversion(

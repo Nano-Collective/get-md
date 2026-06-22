@@ -378,3 +378,95 @@ test("preserves content in pre and code tags", (t) => {
   t.true(result.includes("<code>"));
   t.true(result.includes("const x = 1;"));
 });
+
+// -- New tests for updated cleanup behavior --
+
+test("preserves h1 inside header when not site chrome", (t) => {
+  const html = `
+    <body>
+      <header>
+        <h1>My Article Title</h1>
+        <p>By Author Name</p>
+      </header>
+      <main>
+        <p>Article content here.</p>
+      </main>
+    </body>
+  `;
+  const result = cleanHTML(html);
+  t.true(result.includes("My Article Title"));
+  t.true(result.includes("Article content here."));
+});
+
+test("preserves nav inside article (table of contents)", (t) => {
+  const html = `
+    <body>
+      <nav class="site-nav">Home | About | Contact</nav>
+      <article>
+        <nav class="toc"><a href="#s1">Section 1</a> | <a href="#s2">Section 2</a></nav>
+        <h2 id="s1">Section 1</h2>
+        <p>Content</p>
+      </article>
+    </body>
+  `;
+  const result = cleanHTML(html);
+  t.false(result.includes("Home | About | Contact"));
+  t.true(result.includes("Section 1"));
+  t.true(result.includes("Content"));
+});
+
+test("preserves footer with article metadata", (t) => {
+  const html = `
+    <body>
+      <article>
+        <h1>Article</h1>
+        <p>Content</p>
+        <footer>Published on 2024-01-01 by Author</footer>
+      </article>
+    </body>
+  `;
+  const result = cleanHTML(html);
+  t.true(result.includes("Published on 2024-01-01"));
+  t.true(result.includes("Content"));
+});
+
+test("removes site-level #header and #footer by ID", (t) => {
+  const html = `
+    <body>
+      <div id="header"><a href="/">Site Logo</a> | <a href="/about">About</a></div>
+      <main><p>Content</p></main>
+      <div id="footer"><p>Copyright 2024</p></div>
+    </body>
+  `;
+  const result = cleanHTML(html);
+  t.false(result.includes("Site Logo"));
+  t.false(result.includes("Copyright 2024"));
+  t.true(result.includes("Content"));
+});
+
+test("preserves sr-only and visually-hidden text", (t) => {
+  const html = `
+    <body>
+      <button><span class="sr-only">Close dialog</span><span aria-hidden="true">X</span></button>
+      <p>Main content</p>
+    </body>
+  `;
+  const result = cleanHTML(html);
+  t.true(result.includes("Close dialog"));
+  t.true(result.includes("Main content"));
+});
+
+test("removes nav.navbar but preserves nav.toc", (t) => {
+  const html = `
+    <body>
+      <nav class="navbar"><a href="/">Home</a> | <a href="/blog">Blog</a></nav>
+      <nav class="toc"><a href="#intro">Introduction</a></nav>
+      <p>Content</p>
+    </body>
+  `;
+  const result = cleanHTML(html);
+  t.false(result.includes("navbar"));
+  t.false(result.includes("Home"));
+  t.true(result.includes("Introduction"));
+  t.true(result.includes("Content"));
+});

@@ -345,6 +345,13 @@ export interface MarkdownOptions {
   useLLM?: boolean;
 
   /**
+   * Hint indicating the original format of the input. When "markdown",
+   * skips HTML parsing and goes directly to markdown post-processing
+   * (metadata extraction, frontmatter, truncation). Default: "html".
+   */
+  inputType?: "html" | "markdown";
+
+  /**
    * Custom path to the LLM model file. Legacy shorthand for
    * `llm: { sdkProvider: 'local-llama', modelPath: ... }`.
    */

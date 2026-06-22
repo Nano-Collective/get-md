@@ -46,7 +46,7 @@ export function cleanHTML(html: string, options: CleanOptions = {}): string {
 }
 
 function removeNoiseElements($: cheerio.CheerioAPI): void {
-  // Remove by role attribute
+  // Remove by ARIA role attribute
   $(
     [
       '[role="navigation"]',
@@ -57,22 +57,26 @@ function removeNoiseElements($: cheerio.CheerioAPI): void {
     ].join(","),
   ).remove();
 
-  // Remove by common class/id patterns
-  // More specific selectors to avoid false positives
+  // Remove by common class/id patterns.
+  // These target site-level chrome (nav, sidebars, ads, modals, cookie notices,
+  // comment sections, social widgets) while being conservative about
+  // removing <header>/<footer> elements since many sites put primary page
+  // titles and important content inside them.
   const noiseSelectors = [
-    // Navigation elements (but not components that just have 'nav' in the name)
-    'nav[role="navigation"]',
+    // Navigation elements — targeted selectors only.
+    // We avoid bare "nav" / "header" / "footer" because many sites place
+    // primary page titles and article metadata inside them.
+    // But "nav.navbar" is unambiguously site-level navigation.
     "nav.navbar",
-    "nav.nav-menu",
     "div.navbar",
     'div[role="navigation"]',
     "#navigation",
     "#nav",
     "#menu",
 
-    // Headers/Footers - only actual header/footer elements or very specific classes
-    'header[role="banner"]',
-    'footer[role="contentinfo"]',
+    // Known site / framework chrome IDs and classes.
+    // These are general patterns (not site-specific) that match common
+    // CMS/framework conventions for site-level chrome.
     "#header",
     "#footer",
     "div.site-header",
@@ -80,11 +84,17 @@ function removeNoiseElements($: cheerio.CheerioAPI): void {
     "div.page-header",
     "div.page-footer",
 
-    // Sidebars
+    // Sidebars — these are almost never primary content
     "aside",
     "div.sidebar",
     'div[role="complementary"]',
     "#sidebar",
+
+    // Breadcrumbs
+    '[class*="breadcrumb"]',
+    "nav.breadcrumb",
+    ".breadcrumbs-bar",
+    ".breadcrumbs",
 
     // Ads
     ".ad",
