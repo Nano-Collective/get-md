@@ -171,8 +171,12 @@ test("convertToMarkdown: respects extractContent option", async (t) => {
     extractContent: false,
   });
 
-  // Aggressive cleanup removes site-level nav/header/footer
-  // even when extractContent is false, so navigation may not be present
+  // Bare <nav> and <footer> without specific site-chrome selectors
+  // are preserved — they may contain article metadata or TOC
+  t.true(
+    result.markdown.includes("Navigation menu") ||
+      result.markdown.includes("Footer information"),
+  );
   t.is(result.stats.readabilitySuccess, false);
 });
 

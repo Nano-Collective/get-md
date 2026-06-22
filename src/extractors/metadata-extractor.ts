@@ -95,13 +95,24 @@ function extractSiteName($: cheerio.CheerioAPI): string | undefined {
 
 /**
  * Deduplicate repeated site name tokens.
- * Some sites (notably MDN) have meta tags like "MDNMDNMDN Mozilla"
- * where the name is repeated. Collapse runs of the same token.
+ * Some sites have meta tags where the site name is repeated, e.g.:
+ *   "MDNMDNMDN Mozilla" -> "MDN Mozilla"
+ *   "MDNMDN Mozilla" -> "MDN Mozilla"
+ *
+ * Handles both space-separated duplicates and concatenated repeats.
  */
-function deduplicateSiteName(raw: string): string {
+export function deduplicateSiteName(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+
   // Split on whitespace and collapse consecutive duplicate tokens
-  const tokens = raw.trim().split(/\s+/);
-  if (tokens.length <= 1) return raw.trim();
+  const tokens = trimmed.split(/\s+/);
+  if (tokens.length <= 1) {
+    // Single token — check for internal repetition like "MDNMDNMDN"
+    const internalMatch = trimmed.match(/^(.{2,}?)\1{2,}$/);
+    if (internalMatch) return internalMatch[1];
+    return trimmed;
+  }
 
   const collapsed: string[] = [tokens[0]];
   for (let i = 1; i < tokens.length; i++) {
@@ -110,8 +121,7 @@ function deduplicateSiteName(raw: string): string {
     }
   }
 
-  // Also handle the case where the name is repeated without spaces
-  // e.g. "MDNMDNMDN Mozilla" -> detect the repeated prefix
+  // Handle concatenated repeats without spaces, e.g. "MDNMDNMDN Mozilla"
   const result = collapsed.join(" ");
   const prefixMatch = result.match(/^(.{2,}?)\1{2,}\s/);
   if (prefixMatch) {

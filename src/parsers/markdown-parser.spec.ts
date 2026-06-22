@@ -842,3 +842,70 @@ test("dispatcher: legacy llmModelPath maps to local-llama (and falls back to Tur
   // Fallback should have produced Turndown output.
   t.true(result.markdown.includes("Hello World"));
 });
+
+// -- Language detection false positive tests --
+
+test("code block: generic CSS classes are not treated as language", (t) => {
+  const parser = new MarkdownParser();
+  const html = `
+    <body>
+      <pre><code class="active">some code</code></pre>
+      <pre><code class="highlight">other code</code></pre>
+      <pre><code class="selected">more code</code></pre>
+    </body>
+  `;
+  const result = parser.convert(html);
+  // These generic classes should NOT produce language tags
+  t.false(result.markdown.includes("```active"));
+  t.false(result.markdown.includes("```highlight"));
+  t.false(result.markdown.includes("```selected"));
+});
+
+test("code block: known languages are preserved", (t) => {
+  const parser = new MarkdownParser();
+  const html = `
+    <body>
+      <pre><code class="language-javascript">const x = 1;</code></pre>
+      <pre><code class="lang-python">print("hi")</code></pre>
+      <pre><code class="hljs-ruby">puts "hello"</code></pre>
+    </body>
+  `;
+  const result = parser.convert(html);
+  t.true(result.markdown.includes("```javascript"));
+  t.true(result.markdown.includes("```python"));
+  t.true(result.markdown.includes("```ruby"));
+});
+
+test("code block: single-word class that is a known language works", (t) => {
+  const parser = new MarkdownParser();
+  const html = `
+    <body>
+      <pre><code class="js">const x = 1;</code></pre>
+      <pre><code class="py">print("hi")</code></pre>
+    </body>
+  `;
+  const result = parser.convert(html);
+  t.true(result.markdown.includes("```js"));
+  t.true(result.markdown.includes("```py"));
+});
+
+test("code block: title tag deduplication", (t) => {
+  const parser = new MarkdownParser();
+  const html = `
+    <html>
+    <head>
+      <title>Array - JavaScript | MDNMDNMDN Mozilla</title>
+      <meta property="og:site_name" content="MDNMDNMDN Mozilla">
+    </head>
+    <body>
+      <h1>Array</h1>
+      <p>Content</p>
+    </body>
+    </html>
+  `;
+  const result = parser.convert(html);
+  // Title should use .first() and not concatenate
+  t.true(result.markdown.includes("Array - JavaScript | MDN"));
+  // Site name should be deduplicated
+  t.false(result.markdown.includes("MDNMDNMDN"));
+});

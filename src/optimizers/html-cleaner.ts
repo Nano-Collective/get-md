@@ -46,7 +46,7 @@ export function cleanHTML(html: string, options: CleanOptions = {}): string {
 }
 
 function removeNoiseElements($: cheerio.CheerioAPI): void {
-  // Remove by role attribute
+  // Remove by ARIA role attribute
   $(
     [
       '[role="navigation"]',
@@ -57,18 +57,26 @@ function removeNoiseElements($: cheerio.CheerioAPI): void {
     ].join(","),
   ).remove();
 
-  // Remove by common class/id patterns
-  // More specific selectors to avoid false positives
+  // Remove by common class/id patterns.
+  // These target site-level chrome (nav, sidebars, ads, modals, cookie notices,
+  // comment sections, social widgets) while being conservative about
+  // removing <header>/<footer> elements since many sites put primary page
+  // titles and important content inside them.
   const noiseSelectors = [
-    // Navigation elements — remove site-level nav/header/footer but preserve
-    // article-internal ones (e.g. <nav> inside <article> for table of contents)
+    // Navigation elements — targeted selectors only.
+    // We avoid bare "nav" / "header" / "footer" because many sites place
+    // primary page titles and article metadata inside them.
+    // But "nav.navbar" is unambiguously site-level navigation.
+    "nav.navbar",
     "div.navbar",
     'div[role="navigation"]',
     "#navigation",
     "#nav",
     "#menu",
 
-    // Headers/Footers — site-level only (not inside article/main)
+    // Known site / framework chrome IDs and classes.
+    // These are general patterns (not site-specific) that match common
+    // CMS/framework conventions for site-level chrome.
     "#header",
     "#footer",
     "div.site-header",
@@ -76,55 +84,17 @@ function removeNoiseElements($: cheerio.CheerioAPI): void {
     "div.page-header",
     "div.page-footer",
 
-    // Sidebars
+    // Sidebars — these are almost never primary content
     "aside",
     "div.sidebar",
     'div[role="complementary"]',
     "#sidebar",
 
-    // MDN-specific sidebar nav tree
-    ".nav-main",
-    ".sidebar-inner",
-    "#sidebar-inner",
-    ".page-navigation",
-    ".document-toc",
-    ".breadcrumb",
+    // Breadcrumbs
+    '[class*="breadcrumb"]',
     "nav.breadcrumb",
     ".breadcrumbs-bar",
     ".breadcrumbs",
-    ".mw-jump-link",
-    ".mw-portlet",
-    "#p-navigation",
-    "#p-tb",
-    ".vector-menu",
-    ".mw-sidebar",
-    "#mw-panel",
-    ".navigation",
-    ".layout__left-sidebar",
-    ".left-sidebar",
-    ".left-sidebar__header",
-    ".left-sidebar__content",
-    ".layout__right-sidebar",
-    ".reference-toc",
-    ".reference-layout__toc",
-
-    // Wikipedia-specific nav
-    "#mw-head",
-    "#mw-page-base",
-    "#mw-navigation",
-    ".mw-body",
-    "#contentSub",
-    "#siteSub",
-    "#jump-to-nav",
-    ".mw-editsection",
-    "#toc",
-    ".toc",
-    "#catlinks",
-    ".catlinks",
-    ".mw-normal-catlinks",
-
-    // Generic nav/footer classes used by many sites
-    '[class*="breadcrumb"]',
 
     // Ads
     ".ad",
@@ -167,32 +137,9 @@ function removeNoiseElements($: cheerio.CheerioAPI): void {
     ".newsletter",
     ".subscribe",
     ".signup-form",
-
-    // Skip-to-content / jump links (accessibility noise)
-    'a[href="#content"]',
-    'a[href="#main"]',
-    'a[href="#main-content"]',
-    'a[href="#search"]',
-    ".skip-link",
-    ".skip-to-content",
-    ".visually-hidden",
-    ".sr-only",
   ];
 
   $(noiseSelectors.join(",")).remove();
-
-  // Remove site-level nav/header/footer that are NOT inside <article> or <main>
-  // This catches sites like MDN that use <nav>/<header>/<footer> without ARIA roles
-  // but still have the site chrome outside the main content area
-  $("nav, header, footer").each((_, el) => {
-    const $el = $(el);
-    // Skip if inside article or main (these are content-bearing)
-    if ($el.closest("article, main").length > 0) return;
-    // Skip if it has a role that indicates it's content (not navigation)
-    const role = $el.attr("role");
-    if (role && !["navigation", "banner", "contentinfo"].includes(role)) return;
-    $el.remove();
-  });
 
   // Remove elements with common noise text
   // But ONLY if they are small elements (to avoid removing large content blocks
