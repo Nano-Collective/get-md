@@ -1,8 +1,8 @@
 # get-md
 
-A fast, lightweight HTML to Markdown converter optimized for LLM consumption — built by the [Nano Collective](https://nanocollective.org), a community collective building AI tooling not for profit, but for the community. Everything we build is open, transparent, and driven by the people who use it.
+A fast, lightweight HTML and PDF to Markdown converter optimized for LLM consumption — built by the [Nano Collective](https://nanocollective.org), a community collective building AI tooling not for profit, but for the community. Everything we build is open, transparent, and driven by the people who use it.
 
-Lightning-fast (<100ms) with optional AI-powered conversion using a local LLM model. Pass in HTML or a URL and get clean, structured Markdown back — as a library or from the command line.
+Lightning-fast (<100ms) with optional AI-powered conversion using a local LLM model. Pass in HTML, PDF files, or a URL and get clean, structured Markdown back — as a library or from the command line.
 
 ---
 ![Build Status](https://github.com/Nano-Collective/get-md/raw/main/badges/build.svg)
@@ -31,6 +31,7 @@ Or use the CLI:
 
 ```bash
 npx @nanocollective/get-md https://example.com -o output.md
+npx @nanocollective/get-md handbook.pdf -o output.md
 ```
 
 ## Documentation

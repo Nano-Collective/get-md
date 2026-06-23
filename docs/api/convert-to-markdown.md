@@ -16,13 +16,19 @@ Convert HTML to clean, LLM-optimized Markdown.
 
 ```typescript
 import { convertToMarkdown } from "@nanocollective/get-md";
+import { promises as fs } from "fs";
 
-const result = await convertToMarkdown(html, options?);
+// From HTML string or URL
+const result = await convertToMarkdown(htmlOrUrl, options?);
+
+// From a PDF Buffer
+const pdf = await fs.readFile("handbook.pdf");
+const md = await convertToMarkdown(pdf);
 ```
 
 ### Parameters
 
-- `html` (string) — Raw HTML string or URL to fetch
+- `input` (string | Buffer) — Raw HTML string, URL to fetch, or a Buffer (e.g. read from a PDF file)
 - `options` (MarkdownOptions) — Conversion options (optional)
 
 ### Returns
