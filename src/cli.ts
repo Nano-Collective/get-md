@@ -38,10 +38,9 @@ import {
  * Detect the input type from a file path or content string.
  * URLs and `.html`/`.htm` files are "html".
  * `.md`/`.markdown` files are "markdown".
- * `.pdf`/`.docx` are "unsupported" (clear error).
  * Anything else defaults to "html" (backward compatible).
  */
-export function detectInputType(input: string): "html" | "markdown" | "unsupported" {
+export function detectInputType(input: string): "html" | "markdown" {
   // URLs are always HTML (fetched as HTML)
   if (input.startsWith("http://") || input.startsWith("https://")) {
     return "html";
@@ -53,16 +52,8 @@ export function detectInputType(input: string): "html" | "markdown" | "unsupport
     case ".md":
     case ".markdown":
       return "markdown";
-    case ".html":
-    case ".htm":
-    case ".xhtml":
-      return "html";
-    case ".pdf":
-    case ".docx":
-    case ".doc":
-      return "unsupported";
     default:
-      // No recognized extension — treat as HTML (backward compatible)
+      // No recognized extension or .html/.htm/.pdf/.docx etc — treat as HTML (backward compatible)
       return "html";
   }
 }
@@ -326,15 +317,9 @@ program
 
 async function getInput(input?: string): Promise<{
   content: string;
-  inputType: "html" | "markdown" | "unsupported";
+  inputType: "html" | "markdown";
 }> {
   const inputType = detectInputType(input ?? "");
-
-  if (inputType === "unsupported") {
-    throw new Error(
-      `Unsupported input format: ${path.extname(input ?? "")}. Supported formats: .html, .htm, .md, .markdown, URLs`,
-    );
-  }
 
   // Read from URL
   if (input?.startsWith("http")) {
