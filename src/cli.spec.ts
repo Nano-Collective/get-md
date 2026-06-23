@@ -1065,20 +1065,25 @@ test("CLI: .html file still converts via HTML pipeline", async (t) => {
   }
 });
 
-test("CLI: .pdf file returns clear unsupported format error", async (t) => {
+test("CLI: .pdf file falls through to HTML pipeline (backward compat)", async (t) => {
+  // PDFs are not supported as a markdown input type, but they should not
+  // be rejected with "Unsupported input format". They fall through to the
+  // default "html" path for backward compatibility.
   const { stderr, exitCode } = await runCli(["document.pdf"]);
 
-  t.not(exitCode, 0);
-  t.true(stderr.includes("Unsupported input format"));
-  t.true(stderr.includes(".pdf"));
+  // Should NOT contain "Unsupported input format" error
+  t.false(stderr.includes("Unsupported input format"));
+  // Should NOT contain our old error message
+  t.false(stderr.includes("Supported formats"));
 });
 
-test("CLI: .docx file returns clear unsupported format error", async (t) => {
+test("CLI: .docx file falls through to HTML pipeline (backward compat)", async (t) => {
   const { stderr, exitCode } = await runCli(["report.docx"]);
 
-  t.not(exitCode, 0);
-  t.true(stderr.includes("Unsupported input format"));
-  t.true(stderr.includes(".docx"));
+  // Should NOT contain "Unsupported input format" error
+  t.false(stderr.includes("Unsupported input format"));
+  // Should NOT contain our old error message
+  t.false(stderr.includes("Supported formats"));
 });
 
 test("CLI: .md file with --no-frontmatter excludes frontmatter", async (t) => {
