@@ -12,6 +12,7 @@ import { formatForLLM } from "../optimizers/llm-formatter.js";
 import { enhanceStructure } from "../optimizers/structure-enhancer.js";
 import type {
   ContentMetadata,
+  ContentSource,
   LLMEventCallback,
   LlmConfig,
   LocalLlamaConfig,
@@ -99,15 +100,28 @@ export class MarkdownParser {
    * for conversion, providing higher quality output for complex HTML.
    */
   async convertAsync(
-    html: string,
+    input: string | ContentSource,
     options: MarkdownOptions = {},
   ): Promise<MarkdownResult> {
     const startTime = Date.now();
     const opts = this.normalizeOptions(options);
 
+    const source: ContentSource = typeof input === "string"
+      ? { type: "html", content: input }
+      : input;
+
+    if (source.type !== "html") {
+      throw new Error(`Format '${source.type}' is not yet supported. Currently only 'html' is supported.`);
+    }
+
+    const html = source.content;
+    const sourceMetadata = source.metadata || {};
+
     // Prepare preprocessed HTML and metadata
     const { contentHtml, metadata, readabilitySuccess } =
       await this.preprocessHtml(html, opts);
+
+    const mergedMetadata = { ...sourceMetadata, ...metadata };
 
     // Create event emitter that unifies both callback styles
     const emitEvent = this.createEventEmitter(opts);
@@ -138,7 +152,7 @@ export class MarkdownParser {
       html,
       contentHtml,
       markdown,
-      metadata,
+      mergedMetadata,
       opts,
       readabilitySuccess,
       startTime,
@@ -150,9 +164,20 @@ export class MarkdownParser {
    *
    * For LLM-based conversion, use `convertAsync()` instead.
    */
-  convert(html: string, options: MarkdownOptions = {}): MarkdownResult {
+  convert(input: string | ContentSource, options: MarkdownOptions = {}): MarkdownResult {
     const startTime = Date.now();
     const opts = this.normalizeOptions(options);
+
+    const source: ContentSource = typeof input === "string"
+      ? { type: "html", content: input }
+      : input;
+
+    if (source.type !== "html") {
+      throw new Error(`Format '${source.type}' is not yet supported. Currently only 'html' is supported.`);
+    }
+
+    const html = source.content;
+    const sourceMetadata = source.metadata || {};
 
     // Warn if LLM options are passed to sync method
     if (opts.useLLM) {
@@ -173,6 +198,8 @@ export class MarkdownParser {
     const { contentHtml, metadata, readabilitySuccess } =
       this.preprocessHtmlSync(html, opts);
 
+    const mergedMetadata = { ...sourceMetadata, ...metadata };
+
     // Convert with Turndown (sync path)
     const markdown = this.convertWithTurndown(contentHtml, opts);
 
@@ -181,7 +208,7 @@ export class MarkdownParser {
       html,
       contentHtml,
       markdown,
-      metadata,
+      mergedMetadata,
       opts,
       readabilitySuccess,
       startTime,

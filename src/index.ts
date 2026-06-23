@@ -12,6 +12,7 @@ import type {
   BatchProgress,
   BatchResult,
   ContentMetadata,
+  ContentSource,
   ConversionStats,
   FetchOptions,
   LLMDownloadOptions,
@@ -71,31 +72,42 @@ import { hasContent as hasContentUtil } from "./utils/validators.js";
  * ```
  */
 export async function convertToMarkdown(
-  html: string,
+  input: string | ContentSource,
   options?: MarkdownOptions,
 ): Promise<MarkdownResult> {
-  let inputHtml = html;
+  let contentSource: ContentSource;
   let baseUrl = options?.baseUrl;
 
-  // Check if input is a URL (or forced to be treated as one)
-  if (options?.isUrl || isValidUrl(html)) {
-    // Extract fetch options
-    const fetchOptions: FetchOptions = {
-      timeout: options?.timeout,
-      followRedirects: options?.followRedirects,
-      maxRedirects: options?.maxRedirects,
-      headers: options?.headers,
-      userAgent: options?.userAgent,
-      maxBytes: options?.maxBytes,
-      retries: options?.retries,
-      retryDelay: options?.retryDelay,
-      cache: options?.cache,
-      cacheMaxAge: options?.cacheMaxAge,
-    };
+  // Check if input is a string (legacy/url mode)
+  if (typeof input === "string") {
+    let inputHtml = input;
 
-    // Fetch HTML from URL
-    inputHtml = await fetchUrl(html, fetchOptions);
-    baseUrl = baseUrl || html;
+    if (options?.isUrl || isValidUrl(input)) {
+      // Extract fetch options
+      const fetchOptions: FetchOptions = {
+        timeout: options?.timeout,
+        followRedirects: options?.followRedirects,
+        maxRedirects: options?.maxRedirects,
+        headers: options?.headers,
+        userAgent: options?.userAgent,
+        maxBytes: options?.maxBytes,
+        retries: options?.retries,
+        retryDelay: options?.retryDelay,
+        cache: options?.cache,
+        cacheMaxAge: options?.cacheMaxAge,
+      };
+
+      // Fetch HTML from URL
+      inputHtml = await fetchUrl(input, fetchOptions);
+      baseUrl = baseUrl || input;
+    }
+
+    contentSource = {
+      type: "html",
+      content: inputHtml,
+    };
+  } else {
+    contentSource = input;
   }
 
   const parser = new MarkdownParser();
@@ -103,7 +115,7 @@ export async function convertToMarkdown(
 
   // Use async path to enable Readability content extraction
   // sync path doesn't support content extraction
-  const result = await parser.convertAsync(inputHtml, convertOptions);
+  const result = await parser.convertAsync(contentSource, convertOptions);
 
   // Optional post-processing: download every referenced image into a local
   // directory and rewrite the src. Per-image failures are logged inside,
@@ -175,6 +187,7 @@ export type {
   BatchProgress,
   BatchResult,
   ContentMetadata,
+  ContentSource,
   ConversionStats,
   FetchOptions,
   LLMDownloadOptions,
