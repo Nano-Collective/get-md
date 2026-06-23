@@ -23,6 +23,72 @@ import type {
 } from "../types.js";
 import { estimateTokens } from "../utils/tokens.js";
 
+// Known language identifiers for code block detection validation.
+// This set covers common languages that appear in highlight.js / Prism /
+// GitHub Linguist class names. It is intentionally conservative — when in
+// doubt we omit the language tag rather than guess wrong.
+const KNOWN_LANGUAGES = new Set([
+  // Web
+  "javascript", "js", "jsx", "typescript", "ts", "tsx",
+  "html", "htm", "xhtml", "css", "scss", "sass", "less",
+  "json", "json5", "jsonld", "xml", "svg", "yaml", "yml",
+  "wasm", "webassembly",
+  // Systems
+  "c", "cpp", "c++", "cc", "cxx", "h", "hpp",
+  "rust", "rs", "go", "golang",
+  "swift", "kotlin", "kt", "scala",
+  "java", "groovy", "clojure", "clj",
+  "python", "py", "python3", "rb", "ruby",
+  "php", "perl", "pl", "lua", "r", "matlab",
+  "zig", "nim", "crystal", "dart", "elixir", "ex",
+  "erlang", "erl", "haskell", "hs", "ocaml", "ml",
+  "fsharp", "fs", "fortran", "f90",
+  // Shell / ops
+  "bash", "sh", "shell", "zsh", "fish",
+  "powershell", "ps", "ps1", "batch", "cmd",
+  "dockerfile", "docker", "makefile", "make",
+  "nginx", "apache", "toml", "ini", "cfg",
+  "vim", "viml", "emacs", "elisp",
+  // Data / query
+  "sql", "mysql", "postgresql", "postgres", "sqlite",
+  "graphql", "gql", "regex",
+  "csv", "tsv", "markdown", "md",
+  // Other
+  "diff", "patch", "http", "wasm",
+  "assembly", "asm", "llvm",
+  "solidity", "vyper",
+  "julia", "jl", "octave",
+  "lisp", "scheme", "racket",
+  "prolog", "ada", "cobol",
+  "pascal", "delphi", "d",
+  "objc", "objective-c",
+  "v", "verilog", "vhdl",
+  "glsl", "hlsl", "wgsl",
+  "cmake", "bazel", "ninja",
+  "terraform", "hcl",
+  "puppet", "ansible",
+  "proto", "protobuf",
+  "thrift",
+  // Plain text fallbacks
+  "text", "txt", "plain", "none", "no-highlight",
+]);
+
+// Generic CSS class names that are NOT language identifiers.
+// These commonly appear on <code> elements for styling purposes.
+const GENERIC_CLASSES = new Set([
+  "active", "highlight", "selected", "current", "focus",
+  "disabled", "enabled", "visible", "hidden", "collapsed",
+  "expanded", "open", "closed", "first", "last",
+  "odd", "even", "primary", "secondary", "tertiary",
+  "default", "success", "error", "warning", "info",
+  "small", "medium", "large", "xlarge", "tiny",
+  "left", "right", "center", "top", "bottom",
+  "inline", "block", "flex", "grid",
+  "light", "dark", "auto",
+  "true", "false", "null", "undefined",
+  "top-level", "nested", "leaf", "root",
+]);
+
 // Keys that `normalizeOptions` always populates with a concrete default.
 // Everything else stays optional — see NormalizedMarkdownOptions below.
 type DefaultedOptionKeys =
@@ -675,10 +741,26 @@ export class MarkdownParser {
         const code = node.querySelector?.("code");
         if (!code) return "";
 
-        // Detect language from class name
+        // Detect language from class name — try multiple common patterns:
+        //   language-js, lang-js, hljs-js, brush: js, data-language="js"
         const className = code.className || "";
-        const langMatch = className.match(/language-(\w+)|lang-(\w+)/);
-        const language = langMatch?.[1] || langMatch?.[2] || "";
+        const langMatch =
+          className.match(/language-(\w+)/) ||
+          className.match(/lang-(\w+)/) ||
+          className.match(/hljs-(\w+)/) ||
+          className.match(/brush:\s*(\w+)/) ||
+          className.match(/^(\w+)$/); // single-word class like "js"
+
+        let language = langMatch?.[1] || "";
+
+        // Validate against known language identifiers to avoid false positives
+        // from generic CSS classes like "active", "highlight", "selected"
+        if (language && !KNOWN_LANGUAGES.has(language.toLowerCase())) {
+          // Check if it looks like a language (short, alphabetic, common pattern)
+          if (!/^[a-z]{1,10}$/i.test(language) || GENERIC_CLASSES.has(language.toLowerCase())) {
+            language = "";
+          }
+        }
 
         const codeContent = code.textContent || "";
 

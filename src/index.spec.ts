@@ -194,10 +194,11 @@ test("convertToMarkdown: respects extractContent option", async (t) => {
     extractContent: false,
   });
 
-  // Should include navigation and footer when not extracting
+  // Bare <nav> and <footer> without specific site-chrome selectors
+  // are preserved — they may contain article metadata or TOC
   t.true(
-    result.markdown.includes("Navigation") ||
-      result.markdown.includes("Footer"),
+    result.markdown.includes("Navigation menu") ||
+      result.markdown.includes("Footer information"),
   );
   t.is(result.stats.readabilitySuccess, false);
 });

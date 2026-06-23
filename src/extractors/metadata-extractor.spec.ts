@@ -531,3 +531,31 @@ test("uses first author-related element when multiple exist", (t) => {
   const metadata = extractMetadata(html);
   t.is(metadata.author, "First Author");
 });
+
+// -- Metadata deduplication tests --
+
+test("deduplicateSiteName: collapses consecutive duplicate tokens", (t) => {
+  const { deduplicateSiteName } = require("./metadata-extractor.js");
+  t.is(deduplicateSiteName("MDN MDN MDN Mozilla"), "MDN Mozilla");
+  t.is(deduplicateSiteName("MDN MDN Mozilla"), "MDN Mozilla");
+  t.is(deduplicateSiteName("Mozilla"), "Mozilla");
+});
+
+test("deduplicateSiteName: handles concatenated repeats without spaces", (t) => {
+  const { deduplicateSiteName } = require("./metadata-extractor.js");
+  t.is(deduplicateSiteName("MDNMDNMDN Mozilla"), "MDN Mozilla");
+  t.is(deduplicateSiteName("FOOFOOFOO Bar"), "FOO Bar");
+});
+
+test("deduplicateSiteName: leaves normal site names unchanged", (t) => {
+  const { deduplicateSiteName } = require("./metadata-extractor.js");
+  t.is(deduplicateSiteName("Mozilla"), "Mozilla");
+  t.is(deduplicateSiteName("The Guardian"), "The Guardian");
+  t.is(deduplicateSiteName("Stack Overflow"), "Stack Overflow");
+  t.is(deduplicateSiteName(""), "");
+});
+
+test("deduplicateSiteName: handles single repeated token", (t) => {
+  const { deduplicateSiteName } = require("./metadata-extractor.js");
+  t.is(deduplicateSiteName("MDNMDNMDN"), "MDN");
+});
