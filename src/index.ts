@@ -196,3 +196,8 @@ export type {
 };
 // Re-export LLM utility functions
 export { checkLLMModel, downloadLLMModel, getLLMModelInfo, removeLLMModel };
+// Re-export DOCX converter
+export {
+  convertDocxToMarkdown,
+  convertDocxToHtml,
+} from "./converters/docx-converter.js";

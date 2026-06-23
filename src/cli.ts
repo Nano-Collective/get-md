@@ -16,6 +16,7 @@ import {
   getLLMModelInfo,
   removeLLMModel,
 } from "./index.js";
+import { convertDocxToMarkdown } from "./converters/docx-converter.js";
 import { parseSitemap } from "./sitemap.js";
 import type {
   ConversionStats,
@@ -95,12 +96,12 @@ const program = new Command();
 
 program
   .name("get-md")
-  .description("Convert HTML to LLM-optimized Markdown")
+  .description("Convert HTML and DOCX to LLM-optimized Markdown")
   .version(pkg.version);
 
 // Main conversion command
 program
-  .argument("[input]", "HTML file path, URL, or stdin")
+  .argument("[input]", "HTML/DOCX file path, URL, or stdin")
   .option("-o, --output <file>", "Output file (default: stdout)")
   .option("--no-extract", "Disable Readability content extraction")
   .option("--no-frontmatter", "Exclude metadata from YAML frontmatter")
@@ -256,6 +257,12 @@ program
         return;
       }
 
+      // DOCX mode: detect .docx file and convert directly
+      if (input?.toLowerCase().endsWith(".docx")) {
+        await handleDocxConversion(input, options);
+        return;
+      }
+
       // Get input HTML
       const html = await getInput(input);
 
@@ -391,6 +398,65 @@ async function handleMarkdownConversion(
     : result.markdown;
 
   // Write output
+  if (options.output) {
+    await writeFileEnsureDir(options.output, payload);
+    if (process.stdout.isTTY) {
+      console.error(`✓ Written to ${options.output}`);
+      if (options.verbose) {
+        console.error(`  Input: ${result.stats.inputLength} chars`);
+        console.error(`  Output: ${result.stats.outputLength} chars`);
+        console.error(`  Time: ${result.stats.processingTime}ms`);
+      }
+    }
+  } else {
+    console.log(payload);
+  }
+}
+
+// ============================================================================
+// DOCX Mode
+// ============================================================================
+
+async function handleDocxConversion(
+  inputPath: string,
+  options: CliOptions,
+): Promise<void> {
+  // Build conversion options from CLI flags (same as markdown conversion)
+  const fileConfig = loadConfig();
+
+  const cliOptions: MarkdownOptions = {
+    extractContent: false, // DOCX converter already gives clean HTML
+    includeMeta: options.frontmatter,
+    includeImages: options.images,
+    includeLinks: options.links,
+    includeTables: options.tables,
+    maxLength: parseInt(options.maxLength, 10),
+    baseUrl: options.baseUrl,
+    useLLM: options.useLlm,
+    llmModelPath: options.llmModelPath,
+    llmTemperature: options.llmTemperature
+      ? parseFloat(options.llmTemperature)
+      : undefined,
+    llm: buildCliLlmConfig(options),
+    ...buildCliFetchOptions(options),
+    downloadImages: options.downloadImages,
+    outputPath: options.output,
+    onLLMEvent: options.useLlm
+      ? options.verbose
+        ? createLLMEventHandler()
+        : createMinimalLLMEventHandler()
+      : undefined,
+  };
+
+  const conversionOptions = mergeConfigWithOptions(fileConfig, cliOptions);
+
+  const docxBuffer = await fs.readFile(inputPath);
+  const result = await convertDocxToMarkdown(docxBuffer, conversionOptions);
+
+  const payload = options.json
+    ? JSON.stringify(result, null, 2)
+    : result.markdown;
+
   if (options.output) {
     await writeFileEnsureDir(options.output, payload);
     if (process.stdout.isTTY) {
