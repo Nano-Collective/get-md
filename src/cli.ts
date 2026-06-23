@@ -23,6 +23,7 @@ import type {
   LLMEvent,
   LlmConfig,
   MarkdownOptions,
+  MarkdownResult,
   SdkProvider,
 } from "./types.js";
 import {
@@ -257,9 +258,9 @@ program
         return;
       }
 
-      // DOCX mode: detect .docx file and convert directly
+      // DOCX mode: detect .docx file (local or remote) and convert
       if (input?.toLowerCase().endsWith(".docx")) {
-        await handleDocxConversion(input, options);
+        await handleDocxInput(input, options);
         return;
       }
 
@@ -417,8 +418,8 @@ async function handleMarkdownConversion(
 // DOCX Mode
 // ============================================================================
 
-async function handleDocxConversion(
-  inputPath: string,
+async function handleDocxInput(
+  input: string,
   options: CliOptions,
 ): Promise<void> {
   // Build conversion options from CLI flags (same as markdown conversion)
@@ -450,9 +451,39 @@ async function handleDocxConversion(
 
   const conversionOptions = mergeConfigWithOptions(fileConfig, cliOptions);
 
-  const docxBuffer = await fs.readFile(inputPath);
-  const result = await convertDocxToMarkdown(docxBuffer, conversionOptions);
+  // Route URL .docx through the fetch pipeline so remote DOCX files
+  // are downloaded and written to a temp file before conversion.
+  if (input.startsWith("http")) {
+    const fetchOptions = buildCliFetchOptions(options);
+    const buffer = await fetchDocxFromUrl(input, fetchOptions);
+    const result = await convertDocxToMarkdown(buffer, conversionOptions);
+    await writeDocxResult(result, options);
+  } else {
+    const docxBuffer = await fs.readFile(input);
+    const result = await convertDocxToMarkdown(docxBuffer, conversionOptions);
+    await writeDocxResult(result, options);
+  }
+}
 
+async function fetchDocxFromUrl(
+  url: string,
+  fetchOptions: Partial<MarkdownOptions>,
+): Promise<Buffer> {
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(fetchOptions.timeout ?? 30000),
+    redirect: "follow",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch DOCX from ${url}: ${response.statusText}`);
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
+
+async function writeDocxResult(
+  result: MarkdownResult,
+  options: CliOptions,
+): Promise<void> {
   const payload = options.json
     ? JSON.stringify(result, null, 2)
     : result.markdown;

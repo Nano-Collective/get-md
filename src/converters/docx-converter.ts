@@ -195,7 +195,7 @@ function processParagraph(
     if (text) textParts.push(text);
   });
 
-  const textContent = textParts.join("");
+  const textContent = escapeHtml(textParts.join(""));
 
   // Check if this is a heading
   const headingLevel =
@@ -240,7 +240,7 @@ function processRun(
     texts.push($(tEl).text());
   });
 
-  let content = texts.join("");
+  let content = escapeHtml(texts.join(""));
   if (!content) return "";
 
   // Apply run formatting
