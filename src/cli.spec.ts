@@ -296,7 +296,7 @@ test("CLI: shows help with --help flag", async (t) => {
   const { stdout } = await runCli(["--help"]);
 
   t.true(stdout.includes("get-md"));
-  t.true(stdout.includes("Convert HTML to LLM-optimized Markdown"));
+  t.true(stdout.includes("Convert HTML and DOCX to LLM-optimized Markdown"));
   t.true(stdout.includes("--output"));
   t.true(stdout.includes("--no-extract"));
 });
