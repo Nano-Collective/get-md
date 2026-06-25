@@ -643,6 +643,37 @@ export class MarkdownParser {
   }
 
   /**
+   * Lightweight post-processing for markdown input. Unlike postProcess() which
+   * normalizes HTML→Markdown Turndown output (heading spacing, list spacing,
+   * etc.), this only applies safe normalizations to already-valid markdown:
+   * collapse 3+ blank lines to 2, strip trailing whitespace.
+   */
+  public postProcessMarkdownInput(markdown: string): string {
+    let result = markdown;
+    // Collapse 3+ consecutive blank lines to 2
+    result = result.replace(/\n{3,}/g, "\n\n");
+    // Strip trailing whitespace from lines
+    result = result.replace(/[^\S\n]+$/gm, "");
+    return `${result.trim()}\n`;
+  }
+
+  /**
+   * Post-process already-converted markdown: normalize spacing, headings,
+   * lists, and code blocks. Public so the markdown-input path can reuse it.
+   */
+  public postProcessMarkdown(markdown: string): string {
+    return this.postProcess(markdown);
+  }
+
+  /**
+   * Wrap markdown content in YAML frontmatter from a metadata object.
+   * Public so the markdown-input path can reuse it.
+   */
+  public addMarkdownFrontmatter(markdown: string, metadata: ContentMetadata): string {
+    return this.addFrontmatter(markdown, metadata);
+  }
+
+  /**
    * Finalize conversion: add metadata, frontmatter, and calculate stats
    */
   private finalizeConversion(

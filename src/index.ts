@@ -1,12 +1,12 @@
 // src/index.ts
 
+import { MarkdownParser } from "./parsers/markdown-parser.js";
 import {
   checkLLMModel,
   downloadLLMModel,
   getLLMModelInfo,
   removeLLMModel,
 } from "./converters/llm-manager.js";
-import { MarkdownParser } from "./parsers/markdown-parser.js";
 import type {
   BatchOptions,
   BatchProgress,
@@ -30,6 +30,7 @@ import type {
   TurndownRule,
 } from "./types.js";
 import { fetchUrl, isValidUrl } from "./utils/url-fetcher.js";
+import { estimateTokens } from "./utils/tokens.js";
 import { hasContent as hasContentUtil } from "./utils/validators.js";
 
 /**
@@ -101,6 +102,15 @@ export async function convertToMarkdown(
   const parser = new MarkdownParser();
   const convertOptions = { ...options, baseUrl };
 
+  // When the caller signals "markdown" input, skip HTML parsing entirely.
+  // We still run metadata extraction, frontmatter generation, and
+  // post-processing so markdown files benefit from the same optimization
+  // pipeline as HTML→Markdown conversions — without unnecessary HTML
+  // parsing overhead.
+  if (options?.inputType === "markdown") {
+    return await convertMarkdownInput(inputHtml, convertOptions);
+  }
+
   // Use async path to enable Readability content extraction
   // sync path doesn't support content extraction
   const result = await parser.convertAsync(inputHtml, convertOptions);
@@ -125,6 +135,133 @@ export async function convertToMarkdown(
   }
 
   return result;
+}
+
+/**
+ * Extract metadata from a markdown document using heuristics (no HTML parsing).
+ * Extracts: title from first H1, excerpt from first paragraph, language from
+ * code blocks, word count, reading time.
+ */
+function extractMarkdownMetadata(markdown: string): ContentMetadata {
+  const metadata: ContentMetadata = {};
+
+  // Title: first H1 heading
+  const titleMatch = markdown.match(/^#\s+(.+)$/m);
+  if (titleMatch) {
+    metadata.title = titleMatch[1].trim();
+  }
+
+  // Excerpt: first non-empty paragraph that isn't a heading or code block
+  const lines = markdown.split("\n");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (
+      trimmed.length > 20 &&
+      !trimmed.startsWith("#") &&
+      !trimmed.startsWith("```") &&
+      !trimmed.startsWith("|") &&
+      !trimmed.startsWith("- ") &&
+      !trimmed.startsWith("* ") &&
+      !/^\d+\.\s/.test(trimmed)
+    ) {
+      metadata.excerpt = trimmed.slice(0, 200);
+      break;
+    }
+  }
+
+  // Word count and reading time
+  const { wordCount, readingTime } = calculateMarkdownWordStats(markdown);
+  metadata.wordCount = wordCount;
+  metadata.readingTime = readingTime;
+
+  return metadata;
+}
+
+/**
+ * Calculate word count and reading time from markdown content.
+ * Strips code blocks, URLs, and link syntax for accurate word counts.
+ */
+function calculateMarkdownWordStats(markdown: string): {
+  wordCount: number;
+  readingTime: number;
+} {
+  let contentOnly = markdown;
+
+  // Remove frontmatter if present
+  if (contentOnly.startsWith("---")) {
+    const frontmatterEnd = contentOnly.indexOf("---", 3);
+    if (frontmatterEnd !== -1) {
+      contentOnly = contentOnly.substring(frontmatterEnd + 3).trim();
+    }
+  }
+
+  // Remove code blocks
+  contentOnly = contentOnly.replace(/```[\s\S]*?```/g, "");
+  // Remove inline code
+  contentOnly = contentOnly.replace(/`[^`]+`/g, "");
+  // Remove URLs
+  contentOnly = contentOnly.replace(/https?:\/\/[^\s)]+/g, "");
+  // Remove markdown link syntax but keep the text
+  contentOnly = contentOnly.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+  // Remove image syntax
+  contentOnly = contentOnly.replace(/!\[([^\]]*)\]\([^)]+\)/g, "");
+
+  const words = contentOnly
+    .trim()
+    .split(/\s+/)
+    .filter((w) => w.length > 0);
+  const wordCount = words.length;
+  const readingTime = Math.ceil(wordCount / 250);
+
+  return { wordCount, readingTime };
+}
+
+/**
+ * Process an existing Markdown file through get-md's optimization pipeline:
+ * metadata extraction, frontmatter generation, structure normalization, and
+ * truncation. Skips HTML parsing entirely — the input is already markdown.
+ */
+async function convertMarkdownInput(
+  markdown: string,
+  options: MarkdownOptions,
+): Promise<MarkdownResult> {
+  const startTime = Date.now();
+
+  const metadata = extractMarkdownMetadata(markdown);
+  const { wordCount, readingTime } = calculateMarkdownWordStats(markdown);
+  metadata.wordCount = wordCount;
+  metadata.readingTime = readingTime;
+
+  // Reuse the post-processing logic from MarkdownParser for consistency
+  const parser = new MarkdownParser();
+  let output = parser.postProcessMarkdownInput(markdown);
+
+  // Add frontmatter if requested and metadata is non-empty
+  if (options.includeMeta && Object.keys(metadata).length > 0) {
+    output = parser.addMarkdownFrontmatter(output, metadata);
+  }
+
+  // Enforce max-length truncation
+  const maxLength = options.maxLength ?? 1000000;
+  if (output.length > maxLength) {
+    output = `${output.substring(0, maxLength)}\n\n[Content truncated]`;
+  }
+
+  const processingTime = Date.now() - startTime;
+
+  return {
+    markdown: output,
+    metadata,
+    stats: {
+      inputLength: markdown.length,
+      outputLength: output.length,
+      processingTime,
+      readabilitySuccess: false,
+      imageCount: 0,
+      linkCount: 0,
+      estimatedTokens: estimateTokens(output),
+    },
+  };
 }
 
 /**
