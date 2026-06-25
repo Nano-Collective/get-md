@@ -198,6 +198,6 @@ export type {
 export { checkLLMModel, downloadLLMModel, getLLMModelInfo, removeLLMModel };
 // Re-export DOCX converter
 export {
-  convertDocxToMarkdown,
   convertDocxToHtml,
+  convertDocxToMarkdown,
 } from "./converters/docx-converter.js";

@@ -1,9 +1,12 @@
 // src/converters/docx-converter.ts
 
 import * as cheerio from "cheerio/slim";
-import type { Element } from "domhandler";
+import type { Element as DomElement } from "domhandler";
 import { convertToMarkdown } from "../index.js";
 import type { MarkdownOptions, MarkdownResult } from "../types.js";
+
+/** Element type for OOXML nodes parsed by cheerio in xmlMode. */
+type XmlElement = DomElement;
 
 // ============================================================================
 // OOXML Constants
@@ -21,12 +24,12 @@ const BUILTIN_HEADING_STYLES: Record<string, number> = {
   "Heading 5": 5,
   "Heading 6": 6,
   // Compact (used by some templates, non-English versions)
-  "Heading1": 1,
-  "Heading2": 2,
-  "Heading3": 3,
-  "Heading4": 4,
-  "Heading5": 5,
-  "Heading6": 6,
+  Heading1: 1,
+  Heading2: 2,
+  Heading3: 3,
+  Heading4: 4,
+  Heading5: 5,
+  Heading6: 6,
   // Title / Subtitle
   Title: 1,
   Subtitle: 2,
@@ -120,7 +123,7 @@ function parseDocumentXml(xml: string): string {
   const htmlParts: string[] = [];
   let listState: { type: "ul" | "ol" } | null = null;
 
-  body.children().each((_idx: number, element: Element) => {
+  body.children().each((_idx: number, element: XmlElement) => {
     const el = $(element);
     const tagName = element.tagName?.toLowerCase() ?? "";
 
@@ -153,7 +156,10 @@ function parseDocumentXml(xml: string): string {
   return htmlParts.join("\n");
 }
 
-function closeList(htmlParts: string[], listState: { type: "ul" | "ol" } | null): void {
+function closeList(
+  htmlParts: string[],
+  listState: { type: "ul" | "ol" } | null,
+): void {
   if (listState) htmlParts.push(`</${listState.type}>`);
 }
 
@@ -169,7 +175,7 @@ interface ParagraphResult {
 
 function processParagraph(
   $: cheerio.CheerioAPI,
-  p: cheerio.Cheerio<Element>,
+  p: cheerio.Cheerio<XmlElement>,
 ): ParagraphResult {
   // Check for numbering (list item)
   const numPr = p.find("w\\:numPr").first();
@@ -190,7 +196,7 @@ function processParagraph(
 
   // Collect formatted text from runs
   const textParts: string[] = [];
-  p.find("w\\:r").each((_idx: number, runEl: Element) => {
+  p.find("w\\:r").each((_idx: number, runEl: XmlElement) => {
     const text = processRun($, $(runEl));
     if (text) textParts.push(text);
   });
@@ -230,7 +236,7 @@ function processParagraph(
 
 function processRun(
   $: cheerio.CheerioAPI,
-  run: cheerio.Cheerio<Element>,
+  run: cheerio.Cheerio<XmlElement>,
 ): string {
   // Check for images
   if (run.find("w\\:drawing").length > 0) {
@@ -239,7 +245,7 @@ function processRun(
 
   // Collect text from w:t elements
   const texts: string[] = [];
-  run.find("w\\:t").each((_idx: number, tEl: Element) => {
+  run.find("w\\:t").each((_idx: number, tEl: XmlElement) => {
     texts.push($(tEl).text());
   });
 
@@ -274,24 +280,24 @@ function processImage(): string {
 
 function processTable(
   $: cheerio.CheerioAPI,
-  tbl: cheerio.Cheerio<Element>,
+  tbl: cheerio.Cheerio<XmlElement>,
 ): string {
   const rows: string[][] = [];
 
-  tbl.find("w\\:tr").each((_idx: number, trEl: Element) => {
+  tbl.find("w\\:tr").each((_idx: number, trEl: XmlElement) => {
     const tr = $(trEl);
     const cells: string[] = [];
 
-    tr.find("w\\:tc").each((_tcIdx: number, tcEl: Element) => {
+    tr.find("w\\:tc").each((_tcIdx: number, tcEl: XmlElement) => {
       const tc = $(tcEl);
       const cellTexts: string[] = [];
-      tc.find("w\\:p").each((_pIdx: number, pEl: Element) => {
+      tc.find("w\\:p").each((_pIdx: number, pEl: XmlElement) => {
         const p = $(pEl);
         const runTexts: string[] = [];
-        p.find("w\\:r").each((_rIdx: number, rEl: Element) => {
+        p.find("w\\:r").each((_rIdx: number, rEl: XmlElement) => {
           $(rEl)
             .find("w\\:t")
-            .each((_tIdx: number, tEl: Element) => {
+            .each((_tIdx: number, tEl: XmlElement) => {
               runTexts.push($(tEl).text());
             });
         });

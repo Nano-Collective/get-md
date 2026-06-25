@@ -9,6 +9,7 @@ import readline from "node:readline";
 import { Presets, SingleBar } from "cli-progress";
 import { Command } from "commander";
 import { convertBatch } from "./batch.js";
+import { convertDocxToMarkdown } from "./converters/docx-converter.js";
 import {
   checkLLMModel,
   convertToMarkdown,
@@ -16,7 +17,6 @@ import {
   getLLMModelInfo,
   removeLLMModel,
 } from "./index.js";
-import { convertDocxToMarkdown } from "./converters/docx-converter.js";
 import { parseSitemap } from "./sitemap.js";
 import type {
   ConversionStats,
