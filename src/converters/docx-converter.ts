@@ -195,7 +195,10 @@ function processParagraph(
     if (text) textParts.push(text);
   });
 
-  const textContent = escapeHtml(textParts.join(""));
+  // processRun() already escapes HTML entities in raw text content,
+  // so we join the run output directly without re-escaping.
+  // Double-escaping would corrupt formatting tags (e.g. <strong> → &lt;strong&gt;).
+  const textContent = textParts.join("");
 
   // Check if this is a heading
   const headingLevel =
