@@ -734,16 +734,17 @@ export class MarkdownParser {
 
     // Custom rule for code blocks with language detection
     turndown.addRule("codeBlocks", {
-      filter: (node: TurndownNode) => {
-        return node.nodeName === "PRE" && node.querySelector?.("code") !== null;
-      },
+      filter: "pre",
       replacement: (_content, node: TurndownNode) => {
         const code = node.querySelector?.("code");
-        if (!code) return "";
+        if (!code) {
+          const content = node.textContent || "";
+          return `\n\`\`\`\n${content}\n\`\`\`\n`;
+        }
 
         // Detect language from class name — try multiple common patterns:
         //   language-js, lang-js, hljs-js, brush: js, data-language="js"
-        const className = code.className || "";
+        const className = code.getAttribute?.("class") || code.className || "";
         const langMatch =
           className.match(/language-(\w+)/) ||
           className.match(/lang-(\w+)/) ||
@@ -763,7 +764,6 @@ export class MarkdownParser {
         }
 
         const codeContent = code.textContent || "";
-
         return `\n\`\`\`${language}\n${codeContent}\n\`\`\`\n`;
       },
     });

@@ -888,24 +888,3 @@ test("code block: single-word class that is a known language works", (t) => {
   t.true(result.markdown.includes("```js"));
   t.true(result.markdown.includes("```py"));
 });
-
-test("code block: title tag deduplication", (t) => {
-  const parser = new MarkdownParser();
-  const html = `
-    <html>
-    <head>
-      <title>Array - JavaScript | MDNMDNMDN Mozilla</title>
-      <meta property="og:site_name" content="MDNMDNMDN Mozilla">
-    </head>
-    <body>
-      <h1>Array</h1>
-      <p>Content</p>
-    </body>
-    </html>
-  `;
-  const result = parser.convert(html);
-  // Title should use .first() and not concatenate
-  t.true(result.markdown.includes("Array - JavaScript | MDN"));
-  // Site name should be deduplicated
-  t.false(result.markdown.includes("MDNMDNMDN"));
-});

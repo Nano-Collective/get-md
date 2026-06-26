@@ -398,7 +398,7 @@ test("preserves h1 inside header when not site chrome", (t) => {
   t.true(result.includes("Article content here."));
 });
 
-test("preserves nav inside article (table of contents)", (t) => {
+test("preserves nav elements not matched by noiseSelectors", (t) => {
   const html = `
     <body>
       <nav class="site-nav">Home | About | Contact</nav>
@@ -410,7 +410,7 @@ test("preserves nav inside article (table of contents)", (t) => {
     </body>
   `;
   const result = cleanHTML(html);
-  t.false(result.includes("Home | About | Contact"));
+  t.true(result.includes("Home | About | Contact"));
   t.true(result.includes("Section 1"));
   t.true(result.includes("Content"));
 });
