@@ -84,52 +84,15 @@ function extractExcerpt($: cheerio.CheerioAPI): string | undefined {
 function extractSiteName($: cheerio.CheerioAPI): string | undefined {
   // Try Open Graph
   const ogSite = $('meta[property="og:site_name"]').attr("content");
-  if (ogSite) return deduplicateSiteName(ogSite);
+  if (ogSite) return ogSite;
 
   // Try application name
   const appName = $('meta[name="application-name"]').attr("content");
-  if (appName) return deduplicateSiteName(appName);
+  if (appName) return appName;
 
   return undefined;
 }
 
-/**
- * Deduplicate repeated site name tokens.
- * Some sites have meta tags where the site name is repeated, e.g.:
- *   "MDNMDNMDN Mozilla" -> "MDN Mozilla"
- *   "MDNMDN Mozilla" -> "MDN Mozilla"
- *
- * Handles both space-separated duplicates and concatenated repeats.
- */
-export function deduplicateSiteName(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) return trimmed;
-
-  // Split on whitespace and collapse consecutive duplicate tokens
-  const tokens = trimmed.split(/\s+/);
-  if (tokens.length <= 1) {
-    // Single token — check for internal repetition like "MDNMDNMDN"
-    const internalMatch = trimmed.match(/^(.{2,}?)\1{2,}$/);
-    if (internalMatch) return internalMatch[1];
-    return trimmed;
-  }
-
-  const collapsed: string[] = [tokens[0]];
-  for (let i = 1; i < tokens.length; i++) {
-    if (tokens[i] !== tokens[i - 1]) {
-      collapsed.push(tokens[i]);
-    }
-  }
-
-  // Handle concatenated repeats without spaces, e.g. "MDNMDNMDN Mozilla"
-  const result = collapsed.join(" ");
-  const prefixMatch = result.match(/^(.{2,}?)\1{2,}\s/);
-  if (prefixMatch) {
-    return `${prefixMatch[1]} ${result.slice(prefixMatch[0].length).trim()}`.trim();
-  }
-
-  return result;
-}
 
 function extractPublishedTime($: cheerio.CheerioAPI): string | undefined {
   // Try article:published_time

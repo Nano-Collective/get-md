@@ -231,6 +231,16 @@ export type LlmConfig = LocalLlamaConfig | RemoteLlmConfig;
 // Main Options Interface
 // ============================================================================
 
+/** Common ingestion abstraction for document formats */
+export interface ContentSource {
+  /** Document format type */
+  type: 'html' | 'pdf' | 'docx' | 'markdown';
+  /** The content (HTML string for 'html', etc.) */
+  content: string;
+  /** Optional metadata passed along to the final output */
+  metadata?: Record<string, unknown>;
+}
+
 /** Options for HTML to Markdown conversion */
 export interface MarkdownOptions {
   /** Extract only main content using Readability (default: true) */

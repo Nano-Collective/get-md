@@ -94,7 +94,7 @@ function cleanInlineFormatting(markdown: string): string {
 function enhanceCodeBlocks(markdown: string): string {
   // Ensure code blocks are on their own lines with spacing
   let result = markdown.replace(/([^\n])```/g, "$1\n\n```");
-  result = result.replace(/```([^\n])/g, "```\n$1");
+  result = result.replace(/```(?![a-zA-Z0-9_-])([^\n])/g, "```\n$1");
 
   return result;
 }

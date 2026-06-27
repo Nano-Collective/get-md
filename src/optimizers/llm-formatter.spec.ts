@@ -120,16 +120,15 @@ test("enhances code blocks - adds line breaks before", (t) => {
 });
 
 test("enhances code blocks - adds line breaks after opening", (t) => {
-  const markdown = "\`\`\`javascriptcode here\`\`\`";
+  const markdown = "\`\`\`javascript\ncode here\n\`\`\`";
   const result = formatForLLM(markdown);
-  t.true(result.includes("\`\`\`\njavascript"));
+  t.true(result.includes("\`\`\`javascript\n"));
 });
 
 test("enhances code blocks - properly spaces full code block", (t) => {
   const markdown = "Text\`\`\`js\nconst x = 1;\n\`\`\`More text";
   const result = formatForLLM(markdown);
-  t.true(result.includes("Text\n\n\`\`\`"));
-  t.true(result.includes("\`\`\`\njs"));
+  t.true(result.includes("Text\n\n\`\`\`js\n"));
 });
 
 test("optimizes link formatting - converts reference to inline", (t) => {

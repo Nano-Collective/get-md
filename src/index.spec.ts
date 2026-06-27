@@ -122,6 +122,29 @@ test("convertToMarkdown: converts HTML string to markdown", async (t) => {
   t.truthy(result.stats);
 });
 
+test("convertToMarkdown: converts ContentSource to markdown", async (t) => {
+  const source = { type: "html" as const, content: SIMPLE_HTML, metadata: { custom: "value" } };
+  const result = await convertToMarkdown(source, { includeMeta: true });
+
+  t.truthy(result);
+  t.is(typeof result.markdown, "string");
+  t.true(result.markdown.includes("Hello World"));
+  t.truthy(result.metadata);
+  t.is((result.metadata as Record<string, unknown>).custom, "value");
+  t.true(result.markdown.includes("custom: value"));
+});
+
+test("convertToMarkdown: throws on unsupported ContentSource type", async (t) => {
+  const source = { type: "pdf" as const, content: "..." };
+  
+  await t.throwsAsync(
+    async () => {
+      await convertToMarkdown(source);
+    },
+    { message: /Format 'pdf' is not yet supported/ }
+  );
+});
+
 test("convertToMarkdown: returns proper MarkdownResult structure", async (t) => {
   const result = await convertToMarkdown(SIMPLE_HTML);
 

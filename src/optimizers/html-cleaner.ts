@@ -189,6 +189,10 @@ function cleanAttributes($: cheerio.CheerioAPI): void {
           return;
         }
 
+        if (attr === "class" && (tagName === "pre" || tagName === "code")) {
+          return;
+        }
+
         // Also preserve data- attributes on pre/code elements and their containers
         // These often contain clean code content (GitHub, GitLab, etc.)
         if (
