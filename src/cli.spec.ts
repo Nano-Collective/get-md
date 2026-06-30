@@ -1069,7 +1069,7 @@ test("CLI: .pdf file falls through to HTML pipeline (backward compat)", async (t
   // PDFs are not supported as a markdown input type, but they should not
   // be rejected with "Unsupported input format". They fall through to the
   // default "html" path for backward compatibility.
-  const { stderr, exitCode } = await runCli(["document.pdf"]);
+  const { stderr } = await runCli(["document.pdf"]);
 
   // Should NOT contain "Unsupported input format" error
   t.false(stderr.includes("Unsupported input format"));
@@ -1078,7 +1078,7 @@ test("CLI: .pdf file falls through to HTML pipeline (backward compat)", async (t
 });
 
 test("CLI: .docx file falls through to HTML pipeline (backward compat)", async (t) => {
-  const { stderr, exitCode } = await runCli(["report.docx"]);
+  const { stderr } = await runCli(["report.docx"]);
 
   // Should NOT contain "Unsupported input format" error
   t.false(stderr.includes("Unsupported input format"));

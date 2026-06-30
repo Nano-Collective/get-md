@@ -72,7 +72,8 @@ export async function fetchUrl(
     if (cached !== null) return cached;
   }
 
-  const body = await fetchWithRetry(url, options);
+  const bodyBuf = await fetchWithRetry(url, options);
+  const body = new TextDecoder("utf-8").decode(bodyBuf);
 
   if (cacheDir) {
     // Awaited so a subsequent fetchUrl for the same URL sees the entry —
@@ -85,10 +86,17 @@ export async function fetchUrl(
   return body;
 }
 
+export async function fetchUrlBuffer(
+  url: string,
+  options: FetchOptions = {},
+): Promise<Buffer> {
+  return await fetchWithRetry(url, options);
+}
+
 async function fetchWithRetry(
   url: string,
   options: FetchOptions,
-): Promise<string> {
+): Promise<Buffer> {
   const maxAttempts = Math.max(1, (options.retries ?? 2) + 1);
   const baseDelay = Math.max(0, options.retryDelay ?? 500);
 
@@ -126,7 +134,7 @@ async function fetchWithRetry(
  * `FetchAttemptError` whose `retryable` flag controls what the outer retry
  * loop does next.
  */
-async function fetchOnce(url: string, options: FetchOptions): Promise<string> {
+async function fetchOnce(url: string, options: FetchOptions): Promise<Buffer> {
   const timeout = options.timeout ?? DEFAULT_FETCH_TIMEOUT;
   const userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
   const followRedirects = options.followRedirects ?? true;
@@ -204,18 +212,24 @@ async function readBodyWithLimit(
   response: Response,
   maxBytes: number,
   controller: AbortController,
-): Promise<string> {
+): Promise<Buffer> {
   if (!response.body) {
     // No streaming body (e.g. some test/mock environments) — fall back to
     // buffered read but still enforce the cap on the resulting string.
-    const text = await response.text();
-    if (Buffer.byteLength(text, "utf-8") > maxBytes) {
+    let buf: Buffer;
+    if (typeof response.arrayBuffer === "function") {
+      buf = Buffer.from(await response.arrayBuffer());
+    } else {
+      buf = Buffer.from(await response.text());
+    }
+
+    if (buf.byteLength > maxBytes) {
       throw new FetchAttemptError(
         `Response too large: body exceeds maxBytes ${maxBytes}`,
         { retryable: false },
       );
     }
-    return text;
+    return buf;
   }
 
   const reader = response.body.getReader();
@@ -241,7 +255,7 @@ async function readBodyWithLimit(
     reader.releaseLock();
   }
 
-  return new TextDecoder("utf-8").decode(Buffer.concat(chunks));
+  return Buffer.concat(chunks);
 }
 
 /**

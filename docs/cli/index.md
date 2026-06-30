@@ -16,17 +16,20 @@ getmd [input] [options]
 
 ## Input Sources
 
-The CLI accepts input from multiple sources:
+The CLI accepts input from multiple sources. It automatically detects the content type (HTML, PDF, Markdown) and routes it to the appropriate extractor:
 
 ```bash
-# From stdin
+# From stdin (HTML or Binary Buffer)
 echo '<h1>Hello</h1>' | getmd
+cat document.pdf | getmd
 
-# From a file
+# From a file (HTML or PDF)
 getmd input.html
+getmd handbook.pdf
 
-# From a URL
+# From a URL (HTML or remote PDF)
 getmd https://example.com
+getmd https://example.com/handbook.pdf
 ```
 
 ## Options

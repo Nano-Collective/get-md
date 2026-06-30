@@ -60,6 +60,7 @@
     "commander": "^14.0.2",
     "happy-dom-without-node": "^14.12.3",
     "node-stream-zip": "^1.15.0",
+    "pdf-parse": "^2.4.5",
     "turndown": "^7.2.2",
     "turndown-plugin-gfm": "^1.0.2",
     "domhandler": "^5.0.3"

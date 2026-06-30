@@ -293,7 +293,7 @@ program
 
       // When auto-detection identifies markdown, route through the markdown
       // optimization pipeline directly — no HTML conversion needed.
-      if (inputType === "markdown") {
+      if (inputType === "markdown" && typeof html === "string") {
         await handleMarkdownInput(html, input, options);
         return;
       }
@@ -324,11 +324,10 @@ program
   });
 
 async function getInput(input?: string): Promise<{
-  content: string;
-  inputType: "html" | "markdown";
+  content: string | Buffer;
+  inputType: "html" | "markdown" | "pdf";
 }> {
-  const inputType = detectInputType(input ?? "");
-
+  let inputType: "html" | "markdown" | "pdf" = detectInputType(input ?? "") as any;
   // Read from URL
   if (input?.startsWith("http")) {
     const response = await fetch(input, {
@@ -337,11 +336,20 @@ async function getInput(input?: string): Promise<{
     if (!response.ok) {
       throw new Error(`Failed to fetch ${input}: ${response.statusText}`);
     }
+    if (
+      response.headers.get("content-type")?.includes("application/pdf") ||
+      input.toLowerCase().endsWith(".pdf")
+    ) {
+      return { content: Buffer.from(await response.arrayBuffer()), inputType: "pdf" };
+    }
     return { content: await response.text(), inputType };
   }
 
   // Read from file
   if (input && input !== "-") {
+    if (input.toLowerCase().endsWith(".pdf")) {
+      return { content: await fs.readFile(input), inputType: "pdf" };
+    }
     return {
       content: await fs.readFile(input, "utf-8"),
       inputType,
@@ -354,8 +362,12 @@ async function getInput(input?: string): Promise<{
     for await (const chunk of process.stdin) {
       chunks.push(Buffer.from(chunk as Uint8Array));
     }
+    const buf = Buffer.concat(chunks);
+    if (buf.subarray(0, 4).toString() === "%PDF") {
+      return { content: buf, inputType: "pdf" };
+    }
     return {
-      content: Buffer.concat(chunks).toString("utf-8"),
+      content: buf.toString("utf-8"),
       inputType: "html",
     };
   }
@@ -434,7 +446,7 @@ async function handleMarkdownInput(
 }
 
 async function handleMarkdownConversion(
-  html: string,
+  html: string | Buffer,
   options: CliOptions,
 ): Promise<void> {
   // Load config from file(s)
@@ -1003,7 +1015,7 @@ function handleModelPath(): void {
 }
 
 async function handleComparisonMode(
-  html: string,
+  html: string | Buffer,
   options: CliOptions,
 ): Promise<void> {
   // Check if LLM model is available

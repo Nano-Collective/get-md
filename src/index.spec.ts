@@ -328,8 +328,10 @@ const mockFetch = () => {
       ok: true,
       status: 200,
       statusText: "OK",
+      headers: new Headers({ "content-type": "text/html" }),
       text: async () => MOCK_HTML_RESPONSE,
-    }) as Response) as typeof fetch;
+      arrayBuffer: async () => Buffer.from(MOCK_HTML_RESPONSE).buffer,
+    }) as unknown as Response) as typeof fetch;
   return originalFetch;
 };
 
@@ -929,4 +931,131 @@ test("convertToMarkdown: useLLM without model falls back to Turndown", async (t)
   t.truthy(result);
   t.is(typeof result.markdown, "string");
   t.true(result.markdown.length > 0);
+});
+
+test("convertToMarkdown: converts PDF buffer to markdown", async (t) => {
+  // minimal pdf source with "Hello PDF":
+  const pdfBuffer = Buffer.from(
+      "%PDF-1.1\n" +
+      "1 0 obj\n" +
+      "<< /Type /Catalog\n" +
+      "/Outlines 2 0 R\n" +
+      "/Pages 3 0 R >>\n" +
+      "endobj\n" +
+      "2 0 obj\n" +
+      "<< /Type /Outlines\n" +
+      "/Count 0 >>\n" +
+      "endobj\n" +
+      "3 0 obj\n" +
+      "<< /Type /Pages\n" +
+      "/Kids [4 0 R]\n" +
+      "/Count 1 >>\n" +
+      "endobj\n" +
+      "4 0 obj\n" +
+      "<< /Type /Page\n" +
+      "/Parent 3 0 R\n" +
+      "/MediaBox [0 0 612 792]\n" +
+      "/Contents 5 0 R\n" +
+      "/Resources << /ProcSet 6 0 R\n" +
+      "/Font << /F1 7 0 R >> >>\n" +
+      ">> endobj\n" +
+      "5 0 obj\n" +
+      "<< /Length 44 >>\n" +
+      "stream\n" +
+      "BT\n" +
+      "/F1 24 Tf\n" +
+      "100 100 Td\n" +
+      "(Hello PDF) Tj\n" +
+      "ET\n" +
+      "endstream\n" +
+      "endobj\n" +
+      "6 0 obj\n" +
+      "[/PDF /Text]\n" +
+      "endobj\n" +
+      "7 0 obj\n" +
+      "<< /Type /Font\n" +
+      "/Subtype /Type1\n" +
+      "/Name /F1\n" +
+      "/BaseFont /Helvetica\n" +
+      "/Encoding /MacRomanEncoding >>\n" +
+      "endobj\n" +
+      "xref\n" +
+      "0 8\n" +
+      "0000000000 65535 f\n" +
+      "0000000009 00000 n\n" +
+      "0000000074 00000 n\n" +
+      "0000000120 00000 n\n" +
+      "0000000179 00000 n\n" +
+      "0000000300 00000 n\n" +
+      "0000000394 00000 n\n" +
+      "0000000423 00000 n\n" +
+      "trailer\n" +
+      "<< /Size 8\n" +
+      "/Root 1 0 R >>\n" +
+      "startxref\n" +
+      "536\n" +
+      "%%EOF",
+      "binary"
+  );
+
+  const result = await convertToMarkdown(pdfBuffer, { includeMeta: true, extractContent: false });
+  t.truthy(result);
+  t.true(result.markdown.includes("Hello PDF"));
+});
+
+test("convertToMarkdown: escapes HTML in PDF content to prevent injection", async (t) => {
+  const pdfBuffer = Buffer.from(
+      "%PDF-1.1\n" +
+      "1 0 obj\n" +
+      "<< /Type /Catalog /Pages 3 0 R >>\n" +
+      "endobj\n" +
+      "2 0 obj\n" +
+      "<< /Type /Outlines /Count 0 >>\n" +
+      "endobj\n" +
+      "3 0 obj\n" +
+      "<< /Type /Pages /Kids [4 0 R] /Count 1 >>\n" +
+      "endobj\n" +
+      "4 0 obj\n" +
+      "<< /Type /Page /Parent 3 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 7 0 R >> >> >>\n" +
+      "endobj\n" +
+      "5 0 obj\n" +
+      "<< /Length 64 >>\n" +
+      "stream\n" +
+      "BT\n" +
+      "/F1 24 Tf\n" +
+      "100 100 Td\n" +
+      "(<script>alert\\(1\\)</script>) Tj\n" +
+      "ET\n" +
+      "endstream\n" +
+      "endobj\n" +
+      "6 0 obj\n" +
+      "[/PDF /Text]\n" +
+      "endobj\n" +
+      "7 0 obj\n" +
+      "<< /Type /Font /Subtype /Type1 /Name /F1 /BaseFont /Helvetica /Encoding /MacRomanEncoding >>\n" +
+      "endobj\n" +
+      "xref\n" +
+      "0 8\n" +
+      "0000000000 65535 f\n" +
+      "0000000009 00000 n\n" +
+      "0000000074 00000 n\n" +
+      "0000000120 00000 n\n" +
+      "0000000179 00000 n\n" +
+      "0000000300 00000 n\n" +
+      "0000000394 00000 n\n" +
+      "0000000423 00000 n\n" +
+      "trailer\n" +
+      "<< /Size 8 /Root 1 0 R >>\n" +
+      "startxref\n" +
+      "536\n" +
+      "%%EOF",
+      "binary"
+  );
+
+  const result = await convertToMarkdown(pdfBuffer, { includeMeta: true, extractContent: false });
+  t.truthy(result);
+  
+  // The raw HTML tag should be preserved in the markdown output as text,
+  // rather than being parsed and stripped by the HTML parser.
+  t.true(result.markdown.includes("<script>alert(1)</script>"));
 });

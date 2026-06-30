@@ -30,6 +30,7 @@ import type {
   SdkProvider,
   TurndownRule,
 } from "./types.js";
+import { escapeHtml } from "./utils/escape.js";
 import { fetchUrl, isValidUrl } from "./utils/url-fetcher.js";
 import { estimateTokens } from "./utils/tokens.js";
 import { hasContent as hasContentUtil } from "./utils/validators.js";
@@ -70,19 +71,56 @@ import { hasContent as hasContentUtil } from "./utils/validators.js";
  *   useLLM: true,
  *   onLLMEvent: (event) => console.log(event)
  * });
+ *
+ * // Process a PDF file using a Buffer
+ * import { promises as fs } from "fs";
+ * const pdfBuffer = await fs.readFile("handbook.pdf");
+ * const pdfResult = await convertToMarkdown(pdfBuffer);
  * ```
  */
 export async function convertToMarkdown(
-  input: string | ContentSource,
+  input: string | Buffer | ContentSource,
   options?: MarkdownOptions,
 ): Promise<MarkdownResult> {
   let contentSource: ContentSource;
   let baseUrl = options?.baseUrl;
+  let inputHtml = "";
 
-  // Check if input is a string (legacy/url mode)
-  if (typeof input === "string") {
-    let inputHtml = input;
-
+  if (Buffer.isBuffer(input)) {
+    const buffer = Buffer.from(input);
+    if (buffer.subarray(0, 4).toString() === "%PDF") {
+      const { extractPdfContent } = await import(
+        "./extractors/pdf-extractor.js"
+      );
+      const pdfText = await extractPdfContent(buffer);
+      if (!pdfText.trim()) {
+        return {
+          markdown: "",
+          metadata: {},
+          stats: {
+            inputLength: 0,
+            outputLength: 0,
+            processingTime: 0,
+            readabilitySuccess: false,
+            imageCount: 0,
+            linkCount: 0,
+            estimatedTokens: 0,
+          },
+        };
+      }
+      const escapedText = escapeHtml(pdfText);
+      inputHtml = escapedText
+        .split(/\r?\n\r?\n/)
+        .map((p) => `<p>${p.trim()}</p>`)
+        .join("\n");
+    } else {
+      throw new Error(
+        "Unsupported binary format: Expected a PDF or other supported binary format."
+      );
+    }
+    contentSource = { type: "html", content: inputHtml };
+  } else if (typeof input === "string") {
+    inputHtml = input;
     if (options?.isUrl || isValidUrl(input)) {
       // Extract fetch options
       const fetchOptions: FetchOptions = {
@@ -98,17 +136,42 @@ export async function convertToMarkdown(
         cacheMaxAge: options?.cacheMaxAge,
       };
 
-      // Fetch HTML from URL
-      inputHtml = await fetchUrl(input, fetchOptions);
+      if (input.toLowerCase().endsWith(".pdf")) {
+        const { fetchUrlBuffer } = await import("./utils/url-fetcher.js");
+        const buffer = await fetchUrlBuffer(input, fetchOptions);
+        const { extractPdfContent } = await import(
+          "./extractors/pdf-extractor.js"
+        );
+        const pdfText = await extractPdfContent(buffer);
+        if (!pdfText.trim()) {
+          return {
+            markdown: "",
+            metadata: {},
+            stats: {
+              inputLength: 0,
+              outputLength: 0,
+              processingTime: 0,
+              readabilitySuccess: false,
+              imageCount: 0,
+              linkCount: 0,
+              estimatedTokens: 0,
+            },
+          };
+        }
+        const escapedUrlText = escapeHtml(pdfText);
+        inputHtml = escapedUrlText
+          .split(/\r?\n\r?\n/)
+          .map((p) => `<p>${p.trim()}</p>`)
+          .join("\n");
+      } else {
+        inputHtml = await fetchUrl(input, fetchOptions);
+      }
       baseUrl = baseUrl || input;
     }
-
-    contentSource = {
-      type: "html",
-      content: inputHtml,
-    };
+    contentSource = { type: "html", content: inputHtml };
   } else {
     contentSource = input;
+    inputHtml = input.content;
   }
 
   const parser = new MarkdownParser();
