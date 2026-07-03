@@ -1,7 +1,7 @@
 {
   "name": "@nanocollective/get-md",
   "version": "1.5.0",
-  "description": "Fast HTML to Markdown converter optimized for LLM consumption",
+  "description": "Fast HTML, PDF, DOCX, and Markdown to Markdown converter optimized for LLM consumption",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

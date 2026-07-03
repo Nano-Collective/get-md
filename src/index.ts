@@ -115,7 +115,7 @@ export async function convertToMarkdown(
         .join("\n");
     } else {
       throw new Error(
-        "Unsupported binary format: Expected a PDF or other supported binary format."
+        "Unsupported binary format: Expected a PDF or other supported binary format.",
       );
     }
     contentSource = { type: "html", content: inputHtml };

@@ -321,12 +321,13 @@ export class MarkdownParser {
     const startTime = Date.now();
     const opts = this.normalizeOptions(options);
 
-    const source: ContentSource = typeof input === "string"
-      ? { type: "html", content: input }
-      : input;
+    const source: ContentSource =
+      typeof input === "string" ? { type: "html", content: input } : input;
 
     if (source.type !== "html") {
-      throw new Error(`Format '${source.type}' is not yet supported. Currently only 'html' is supported.`);
+      throw new Error(
+        `Format '${source.type}' is not yet supported. Currently only 'html' is supported.`,
+      );
     }
 
     const html = source.content;
@@ -379,16 +380,20 @@ export class MarkdownParser {
    *
    * For LLM-based conversion, use `convertAsync()` instead.
    */
-  convert(input: string | ContentSource, options: MarkdownOptions = {}): MarkdownResult {
+  convert(
+    input: string | ContentSource,
+    options: MarkdownOptions = {},
+  ): MarkdownResult {
     const startTime = Date.now();
     const opts = this.normalizeOptions(options);
 
-    const source: ContentSource = typeof input === "string"
-      ? { type: "html", content: input }
-      : input;
+    const source: ContentSource =
+      typeof input === "string" ? { type: "html", content: input } : input;
 
     if (source.type !== "html") {
-      throw new Error(`Format '${source.type}' is not yet supported. Currently only 'html' is supported.`);
+      throw new Error(
+        `Format '${source.type}' is not yet supported. Currently only 'html' is supported.`,
+      );
     }
 
     const html = source.content;
@@ -696,7 +701,10 @@ export class MarkdownParser {
    * Wrap markdown content in YAML frontmatter from a metadata object.
    * Public so the markdown-input path can reuse it.
    */
-  public addMarkdownFrontmatter(markdown: string, metadata: ContentMetadata): string {
+  public addMarkdownFrontmatter(
+    markdown: string,
+    metadata: ContentMetadata,
+  ): string {
     return this.addFrontmatter(markdown, metadata);
   }
 

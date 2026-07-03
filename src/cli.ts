@@ -327,7 +327,9 @@ async function getInput(input?: string): Promise<{
   content: string | Buffer;
   inputType: "html" | "markdown" | "pdf";
 }> {
-  let inputType: "html" | "markdown" | "pdf" = detectInputType(input ?? "") as any;
+  let inputType: "html" | "markdown" | "pdf" = detectInputType(
+    input ?? "",
+  ) as any;
   // Read from URL
   if (input?.startsWith("http")) {
     const response = await fetch(input, {
@@ -340,7 +342,10 @@ async function getInput(input?: string): Promise<{
       response.headers.get("content-type")?.includes("application/pdf") ||
       input.toLowerCase().endsWith(".pdf")
     ) {
-      return { content: Buffer.from(await response.arrayBuffer()), inputType: "pdf" };
+      return {
+        content: Buffer.from(await response.arrayBuffer()),
+        inputType: "pdf",
+      };
     }
     return { content: await response.text(), inputType };
   }
