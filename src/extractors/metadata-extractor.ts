@@ -93,7 +93,6 @@ function extractSiteName($: cheerio.CheerioAPI): string | undefined {
   return undefined;
 }
 
-
 function extractPublishedTime($: cheerio.CheerioAPI): string | undefined {
   // Try article:published_time
   const articleTime = $('meta[property="article:published_time"]').attr(

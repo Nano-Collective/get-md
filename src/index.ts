@@ -1,12 +1,12 @@
 // src/index.ts
 
-import { MarkdownParser } from "./parsers/markdown-parser.js";
 import {
   checkLLMModel,
   downloadLLMModel,
   getLLMModelInfo,
   removeLLMModel,
 } from "./converters/llm-manager.js";
+import { MarkdownParser } from "./parsers/markdown-parser.js";
 import type {
   BatchOptions,
   BatchProgress,
@@ -31,8 +31,8 @@ import type {
   TurndownRule,
 } from "./types.js";
 import { escapeHtml } from "./utils/escape.js";
-import { fetchUrl, isValidUrl } from "./utils/url-fetcher.js";
 import { estimateTokens } from "./utils/tokens.js";
+import { fetchUrl, isValidUrl } from "./utils/url-fetcher.js";
 import { hasContent as hasContentUtil } from "./utils/validators.js";
 
 /**
@@ -115,7 +115,7 @@ export async function convertToMarkdown(
         .join("\n");
     } else {
       throw new Error(
-        "Unsupported binary format: Expected a PDF or other supported binary format."
+        "Unsupported binary format: Expected a PDF or other supported binary format.",
       );
     }
     contentSource = { type: "html", content: inputHtml };
@@ -351,6 +351,11 @@ export function hasContent(html: string): boolean {
 
 // Re-export batch helpers
 export { convertBatch, convertBatchAll } from "./batch.js";
+// Re-export DOCX converter
+export {
+  convertDocxToHtml,
+  convertDocxToMarkdown,
+} from "./converters/docx-converter.js";
 export {
   createLLMConverter,
   LLMConverter,
@@ -409,8 +414,3 @@ export type {
 };
 // Re-export LLM utility functions
 export { checkLLMModel, downloadLLMModel, getLLMModelInfo, removeLLMModel };
-// Re-export DOCX converter
-export {
-  convertDocxToHtml,
-  convertDocxToMarkdown,
-} from "./converters/docx-converter.js";

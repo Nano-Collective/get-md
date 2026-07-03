@@ -234,7 +234,7 @@ export type LlmConfig = LocalLlamaConfig | RemoteLlmConfig;
 /** Common ingestion abstraction for document formats */
 export interface ContentSource {
   /** Document format type */
-  type: 'html' | 'pdf' | 'docx' | 'markdown';
+  type: "html" | "pdf" | "docx" | "markdown";
   /** The content (HTML string for 'html', etc.) */
   content: string;
   /** Optional metadata passed along to the final output */
