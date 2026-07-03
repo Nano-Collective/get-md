@@ -1,16 +1,16 @@
 ---
 title: "Conversion API"
-description: "API reference for converting HTML to Markdown — convertToMarkdown(), MarkdownOptions, and MarkdownResult"
+description: "API reference for converting documents to Markdown — convertToMarkdown(), MarkdownOptions, and MarkdownResult"
 sidebar_order: 1
 ---
 
 # Conversion API
 
-The primary entry point for HTML/URL → Markdown conversion. Covers the `convertToMarkdown()` function, the full `MarkdownOptions` surface, and the `MarkdownResult` shape it returns.
+The primary entry point for HTML/PDF/DOCX/Markdown/URL → Markdown conversion. Covers the `convertToMarkdown()` function, the full `MarkdownOptions` surface, and the `MarkdownResult` shape it returns.
 
 ## convertToMarkdown()
 
-Convert HTML to clean, LLM-optimized Markdown.
+Convert documents (HTML, PDF, DOCX, Markdown) to clean, LLM-optimized Markdown.
 
 ### Usage
 

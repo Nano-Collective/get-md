@@ -47,8 +47,10 @@ console.log(result.markdown);
 # From a URL
 getmd https://example.com -o output.md
 
-# From a file
+# From a file (HTML, PDF, DOCX, or Markdown)
 getmd article.html -o article.md
+getmd handbook.pdf -o handbook.md
+getmd document.docx -o document.md
 
 # From stdin
 echo '<h1>Hello</h1>' | getmd
