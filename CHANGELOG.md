@@ -1,3 +1,19 @@
+# Unreleased
+
+## New features
+
+- **PDF Support** — added support for PDF file processing and extraction using `pdf-parse`.
+- **DOCX Support** — added DOCX to Markdown conversion support with accurate heading and structure preservation.
+- **Markdown Support** — added automatic input type detection to allow direct ingestion of `.md` files without intermediate HTML conversion.
+- **Unified Content Ingestion** — introduced `ContentSource` abstraction to support structured input with metadata across multiple input types.
+- **Updated Marketing Materials** — adjusted repository descriptions and docs to highlight the new PDF, DOCX, and Markdown support.
+
+## Bug fixes
+
+- **LLM Noise Reduction** — improved noise reduction and metadata extraction for LLM consumption.
+- **DOCX Processing** — removed double HTML escaping in paragraph processing and resolved CI pipeline issues for DOCX files.
+- **Added Codeowners** — updated the repository configuration to include codeowners.
+
 # 1.5.0
 
 Big release. Adds a pluggable LLM backend, batch + sitemap crawling, image localization, an HTTP cache with retry/backoff, and the helper functions that make get-md useful as a RAG ingestion building block. Plus a sweep of bug fixes from a top-to-bottom review of the 1.4.x surface.
