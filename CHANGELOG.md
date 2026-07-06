@@ -6,13 +6,19 @@
 - **DOCX Support** — added DOCX to Markdown conversion support with accurate heading and structure preservation.
 - **Markdown Support** — added automatic input type detection to allow direct ingestion of `.md` files without intermediate HTML conversion.
 - **Unified Content Ingestion** — introduced `ContentSource` abstraction to support structured input with metadata across multiple input types.
-- **Updated Marketing Materials** — adjusted repository descriptions and docs to highlight the new PDF, DOCX, and Markdown support.
+
+## Documentation
+
+- **Docs / Marketing** — updated repository descriptions and docs to highlight the new PDF, DOCX, and Markdown support.
 
 ## Bug fixes
 
 - **LLM Noise Reduction** — improved noise reduction and metadata extraction for LLM consumption.
 - **DOCX Processing** — removed double HTML escaping in paragraph processing and resolved CI pipeline issues for DOCX files.
-- **Added Codeowners** — updated the repository configuration to include codeowners.
+
+## Repository configuration
+
+- **Added CODEOWNERS** — added a `CODEOWNERS` file to define default reviewers.
 
 # 1.5.0
 
