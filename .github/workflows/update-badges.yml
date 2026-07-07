@@ -30,6 +30,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Build before running tests: the CLI e2e tests spawn the compiled
+      # bin/get-md.js, so stale dist/ would skew coverage and results.
+      - name: Build
+        run: pnpm build
+
       - name: Run tests for latest coverage
         run: pnpm run test:ava:coverage || echo "Coverage test failed or not available"
 

@@ -74,8 +74,9 @@ export async function convertDocxToMarkdown(
  * - Basic text content
  */
 export async function convertDocxToHtml(docxBuffer: Buffer): Promise<string> {
-  const xml = await extractDocumentXml(docxBuffer);
-  return parseDocumentXml(xml);
+  const { documentXml, numberingXml } = await extractDocxParts(docxBuffer);
+  const numbering = numberingXml ? parseNumbering(numberingXml) : new Map();
+  return parseDocumentXml(documentXml, numbering);
 }
 
 // ============================================================================
@@ -83,38 +84,140 @@ export async function convertDocxToHtml(docxBuffer: Buffer): Promise<string> {
 // ============================================================================
 
 /**
- * Extract word/document.xml from a .docx ZIP archive.
- * Uses node-stream-zip (lightweight, zero-dep ZIP reader).
+ * Guard against decompression bombs: refuse to inflate a single OOXML part
+ * larger than this. Real Word documents keep document.xml well under this.
  */
-async function extractDocumentXml(docxBuffer: Buffer): Promise<string> {
+const MAX_ENTRY_BYTES = 100 * 1024 * 1024; // 100 MB
+
+interface DocxParts {
+  documentXml: string;
+  /** word/numbering.xml, when present (absent for documents with no lists). */
+  numberingXml: string | null;
+}
+
+/**
+ * Extract the OOXML parts we care about (document.xml, numbering.xml) from a
+ * .docx ZIP archive. Uses node-stream-zip (lightweight, zero-dep ZIP reader).
+ */
+async function extractDocxParts(docxBuffer: Buffer): Promise<DocxParts> {
   const fs = await import("node:fs");
   const os = await import("node:os");
   const path = await import("node:path");
 
-  // node-stream-zip requires a file path, not a buffer.
-  // Write to a temp file, extract, then clean up.
-  const tmpFile = path.join(
-    os.tmpdir(),
-    `get-md-docx-${process.pid}-${Date.now()}.docx`,
-  );
+  // node-stream-zip requires a file path, not a buffer. Use a private temp
+  // directory (mkdtemp) instead of a predictable name in the shared tmpdir.
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "get-md-docx-"));
+  const tmpFile = path.join(tmpDir, "input.docx");
   fs.writeFileSync(tmpFile, docxBuffer);
 
   try {
     const { default: StreamZip } = await import("node-stream-zip");
     const zip = new StreamZip.async({ file: tmpFile });
-    const xmlBuffer = await zip.entryData("word/document.xml");
-    await zip.close();
-    return xmlBuffer.toString("utf-8");
+    try {
+      const entries = await zip.entries();
+
+      const documentEntry = entries["word/document.xml"];
+      if (!documentEntry) {
+        throw new Error(
+          "Invalid DOCX: word/document.xml not found (is this a valid, unencrypted .docx?)",
+        );
+      }
+      if (documentEntry.size > MAX_ENTRY_BYTES) {
+        throw new Error(
+          `Refusing to extract oversized DOCX part (${documentEntry.size} bytes > ${MAX_ENTRY_BYTES} limit)`,
+        );
+      }
+
+      const documentXml = (await zip.entryData("word/document.xml")).toString(
+        "utf-8",
+      );
+
+      let numberingXml: string | null = null;
+      const numberingEntry = entries["word/numbering.xml"];
+      if (numberingEntry && numberingEntry.size <= MAX_ENTRY_BYTES) {
+        numberingXml = (await zip.entryData("word/numbering.xml")).toString(
+          "utf-8",
+        );
+      }
+
+      return { documentXml, numberingXml };
+    } finally {
+      await zip.close();
+    }
+  } catch (error) {
+    // Wrap low-level zip errors ("Bad archive", "Entry not found", etc.) in a
+    // clear message so callers know the input isn't a usable .docx.
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.startsWith("Invalid DOCX") || message.startsWith("Refusing")) {
+      throw error;
+    }
+    throw new Error(`Failed to read DOCX archive: ${message}`);
   } finally {
-    fs.unlinkSync(tmpFile);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   }
+}
+
+// ============================================================================
+// Numbering (word/numbering.xml) → list type resolution
+// ============================================================================
+
+/**
+ * Map of `numId` → (`ilvl` → "ul" | "ol"), resolved from numbering.xml.
+ * A `numId` references a `w:num`, which references an `abstractNumId`, whose
+ * per-level `w:numFmt` tells us bullet (ul) vs. numbered (ol).
+ */
+type NumberingMap = Map<string, Map<number, "ul" | "ol">>;
+
+function parseNumbering(numberingXml: string): NumberingMap {
+  const $ = cheerio.load(numberingXml, { xmlMode: true });
+
+  // abstractNumId → (ilvl → type)
+  const abstractLevels = new Map<string, Map<number, "ul" | "ol">>();
+  $("w\\:abstractNum").each((_i: number, el: XmlElement) => {
+    const abstractId = $(el).attr("w:abstractNumId");
+    if (!abstractId) return;
+    const levels = new Map<number, "ul" | "ol">();
+    $(el)
+      .find("w\\:lvl")
+      .each((_j: number, lvlEl: XmlElement) => {
+        const ilvl = Number.parseInt($(lvlEl).attr("w:ilvl") ?? "0", 10);
+        const fmt = $(lvlEl).find("w\\:numFmt").first().attr("w:val") ?? "";
+        levels.set(
+          Number.isNaN(ilvl) ? 0 : ilvl,
+          fmt === "bullet" ? "ul" : "ol",
+        );
+      });
+    abstractLevels.set(abstractId, levels);
+  });
+
+  // numId → abstractNumId
+  const numbering: NumberingMap = new Map();
+  $("w\\:num").each((_i: number, el: XmlElement) => {
+    const numId = $(el).attr("w:numId");
+    const abstractId = $(el).find("w\\:abstractNumId").first().attr("w:val");
+    if (!numId || abstractId === undefined) return;
+    const levels = abstractLevels.get(abstractId);
+    if (levels) numbering.set(numId, levels);
+  });
+
+  return numbering;
+}
+
+/** Resolve a (numId, ilvl) to a list type, defaulting to bullet (ul). */
+function resolveListType(
+  numbering: NumberingMap,
+  numId: string | undefined,
+  ilvl: number,
+): "ul" | "ol" {
+  if (!numId) return "ul";
+  return numbering.get(numId)?.get(ilvl) ?? "ul";
 }
 
 // ============================================================================
 // OOXML → HTML
 // ============================================================================
 
-function parseDocumentXml(xml: string): string {
+function parseDocumentXml(xml: string, numbering: NumberingMap): string {
   const $ = cheerio.load(xml, { xmlMode: true });
 
   const body = $("w\\:body");
@@ -128,7 +231,7 @@ function parseDocumentXml(xml: string): string {
     const tagName = element.tagName?.toLowerCase() ?? "";
 
     if (tagName === "w:p") {
-      const result = processParagraph($, el);
+      const result = processParagraph($, el, numbering);
 
       if (result.isList) {
         const listType = result.listType ?? "ul";
@@ -176,6 +279,7 @@ interface ParagraphResult {
 function processParagraph(
   $: cheerio.CheerioAPI,
   p: cheerio.Cheerio<XmlElement>,
+  numbering: NumberingMap,
 ): ParagraphResult {
   // Check for numbering (list item)
   const numPr = p.find("w\\:numPr").first();
@@ -183,12 +287,14 @@ function processParagraph(
   let listType: "ul" | "ol" = "ul";
 
   if (isList) {
+    // Resolve bullet-vs-numbered from numbering.xml (numId + indent level),
+    // falling back to bullet when the mapping is unavailable.
     const numId = numPr.find("w\\:numId").attr("w:val");
-    if (numId) {
-      // Heuristic: even numIds tend to be ordered, odd tend to be unordered.
-      // A full implementation would parse word/numbering.xml.
-      listType = parseInt(numId, 10) % 2 === 0 ? "ol" : "ul";
-    }
+    const ilvl = Number.parseInt(
+      numPr.find("w\\:ilvl").attr("w:val") ?? "0",
+      10,
+    );
+    listType = resolveListType(numbering, numId, Number.isNaN(ilvl) ? 0 : ilvl);
   }
 
   // Get paragraph style name
@@ -284,14 +390,16 @@ function processTable(
 ): string {
   const rows: string[][] = [];
 
-  tbl.find("w\\:tr").each((_idx: number, trEl: XmlElement) => {
+  // Use direct children (not recursive .find) so a nested table's rows/cells
+  // don't get pulled into the outer table.
+  tbl.children("w\\:tr").each((_idx: number, trEl: XmlElement) => {
     const tr = $(trEl);
     const cells: string[] = [];
 
-    tr.find("w\\:tc").each((_tcIdx: number, tcEl: XmlElement) => {
+    tr.children("w\\:tc").each((_tcIdx: number, tcEl: XmlElement) => {
       const tc = $(tcEl);
       const cellTexts: string[] = [];
-      tc.find("w\\:p").each((_pIdx: number, pEl: XmlElement) => {
+      tc.children("w\\:p").each((_pIdx: number, pEl: XmlElement) => {
         const p = $(pEl);
         const runTexts: string[] = [];
         p.find("w\\:r").each((_rIdx: number, rEl: XmlElement) => {

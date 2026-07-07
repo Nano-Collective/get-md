@@ -64,10 +64,8 @@ Source: Fictitious data, for illustration purposes only
 
 Next, we have something a little more complex, a nested table, i.e. a table inside another table. Additionally, the inner table has some of its cells merged. The table is displayed horizontally centered.
 
-| One Three Two Four | One Three | Two | Four | To the left is a table inside a table, with some cells merged. |
-| --- | --- | --- | --- | --- |
-| One Three | Two |  |  |  |
-| Four |  |  |  |  |
+| To the left is a table inside a table, with some cells merged. |
+| --- |
 
 We end with a fancy calendar, note how much of the original formatting is preserved. Note that this table will only display correctly on relatively wide screens. In general, very wide tables or tables whose cells have fixed width requirements don’t fare well in ebooks.
 
@@ -171,41 +169,41 @@ All types of lists are supported by the conversion, with the exception of lists 
 
 ## Multi-level Lists
 
+1.  One
+
+2.  Two
+
+3.  Three
+
+4.  Four with a very long line to demonstrate that the hanging indent for the list is working correctly.
+
+5.  Five
+
+6.  Six
+
+
+A Multi-level list with bullets:
+
 - One
 
 - Two
 
-- Three
+- This bullet uses an image as the bullet item
 
-- Four with a very long line to demonstrate that the hanging indent for the list is working correctly.
+- Four
 
 - Five
 
-- Six
 
-
-A Multi-level list with bullets:
+## Continued Lists
 
 1.  One
 
 2.  Two
 
-3.  This bullet uses an image as the bullet item
-
-4.  Four
-
-5.  Five
-
-
-## Continued Lists
-
-- One
-
-- Two
-
 
 An interruption in our regularly scheduled listing, for this essential and very relevant public service announcement.
 
-- We now resume our normal programming
+1.  We now resume our normal programming
 
-- Four
+2.  Four

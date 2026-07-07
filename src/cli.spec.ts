@@ -296,7 +296,9 @@ test("CLI: shows help with --help flag", async (t) => {
   const { stdout } = await runCli(["--help"]);
 
   t.true(stdout.includes("get-md"));
-  t.true(stdout.includes("Convert HTML and DOCX to LLM-optimized Markdown"));
+  t.true(
+    stdout.includes("Convert HTML, PDF, DOCX, and Markdown to LLM-optimized"),
+  );
   t.true(stdout.includes("--output"));
   t.true(stdout.includes("--no-extract"));
 });
@@ -1065,25 +1067,71 @@ test("CLI: .html file still converts via HTML pipeline", async (t) => {
   }
 });
 
-test("CLI: .pdf file falls through to HTML pipeline (backward compat)", async (t) => {
-  // PDFs are not supported as a markdown input type, but they should not
-  // be rejected with "Unsupported input format". They fall through to the
-  // default "html" path for backward compatibility.
-  const { stderr } = await runCli(["document.pdf"]);
+test("CLI: converts a real .docx file end-to-end", async (t) => {
+  const docxPath = path.join(
+    process.cwd(),
+    "test-fixtures",
+    "docx-fidelity",
+    "calibre-demo.docx",
+  );
+  const { stdout, exitCode } = await runCli([docxPath, "--no-frontmatter"]);
 
-  // Should NOT contain "Unsupported input format" error
-  t.false(stderr.includes("Unsupported input format"));
-  // Should NOT contain our old error message
-  t.false(stderr.includes("Supported formats"));
+  t.is(exitCode, 0);
+  t.true(
+    stdout.includes("# Demonstration of DOCX support"),
+    "converts DOCX headings",
+  );
+  t.true(stdout.length > 5000, "produces substantial markdown");
 });
 
-test("CLI: .docx file falls through to HTML pipeline (backward compat)", async (t) => {
-  const { stderr } = await runCli(["report.docx"]);
+test("CLI: converts a .pdf file end-to-end", async (t) => {
+  const tmpDir = await fs.mkdtemp(path.join(process.cwd(), "tmp-test-"));
+  const pdfFile = path.join(tmpDir, "hello.pdf");
+  // Minimal valid single-page PDF containing the text "Hello PDF World".
+  const pdf =
+    "%PDF-1.4\n" +
+    "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n" +
+    "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n" +
+    "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n" +
+    "4 0 obj\n<< /Length 44 >>\nstream\nBT /F1 24 Tf 100 700 Td (Hello PDF World) Tj ET\nendstream\nendobj\n" +
+    "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n" +
+    "trailer\n<< /Size 6 /Root 1 0 R >>\n%%EOF";
+  await fs.writeFile(pdfFile, pdf, "latin1");
 
-  // Should NOT contain "Unsupported input format" error
-  t.false(stderr.includes("Unsupported input format"));
-  // Should NOT contain our old error message
-  t.false(stderr.includes("Supported formats"));
+  try {
+    const { stdout, exitCode } = await runCli([pdfFile, "--no-frontmatter"]);
+
+    t.is(exitCode, 0);
+    t.true(stdout.includes("Hello PDF World"), "extracts PDF text");
+    // Page-marker noise must not leak into the output.
+    t.false(/-{2,}\s*\d+\s+of\s+\d+\s*-{2,}/.test(stdout), "no page markers");
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("CLI: .md input honors --no-links", async (t) => {
+  const tmpDir = await fs.mkdtemp(path.join(process.cwd(), "tmp-test-"));
+  const inputFile = path.join(tmpDir, "links.md");
+  await fs.writeFile(
+    inputFile,
+    "# Title\n\nSee [this link](https://example.com) here.\n",
+    "utf-8",
+  );
+
+  try {
+    const { stdout, exitCode } = await runCli([
+      inputFile,
+      "--no-links",
+      "--no-frontmatter",
+    ]);
+
+    t.is(exitCode, 0);
+    t.true(stdout.includes("See this link here."), "link text kept");
+    t.false(stdout.includes("](https://example.com)"), "link URL removed");
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
 });
 
 test("CLI: .md file with --no-frontmatter excludes frontmatter", async (t) => {
