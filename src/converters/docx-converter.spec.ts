@@ -208,3 +208,56 @@ test("full document: headings, text, formatting", async (t) => {
   t.is(lines[1], "<p>Some text with <strong>bold</strong> formatting.</p>");
   t.is(lines[2], "<h2>Section</h2>");
 });
+
+// ============================================================================
+// Error handling
+// ============================================================================
+
+test("convertDocxToHtml: throws a clear error on a non-ZIP buffer", async (t) => {
+  const notADocx = Buffer.from("this is definitely not a zip archive");
+  await t.throwsAsync(async () => convertDocxToHtml(notADocx), {
+    message: /Failed to read DOCX archive|Invalid DOCX/,
+  });
+});
+
+test("convertDocxToHtml: throws when word/document.xml is missing", async (t) => {
+  // A valid ZIP that doesn't contain word/document.xml.
+  const filename = "other.txt";
+  const nameBytes = Buffer.from(filename);
+  const data = Buffer.from("hello");
+  const compressed = deflateRawSync(data);
+  const crc = crc32(data);
+
+  const local = Buffer.alloc(30 + nameBytes.length);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt16LE(20, 4);
+  local.writeUInt16LE(8, 8);
+  local.writeUInt32LE(crc, 14);
+  local.writeUInt32LE(compressed.length, 18);
+  local.writeUInt32LE(data.length, 22);
+  local.writeUInt16LE(nameBytes.length, 26);
+  nameBytes.copy(local, 30);
+
+  const cd = Buffer.alloc(46 + nameBytes.length);
+  cd.writeUInt32LE(0x02014b50, 0);
+  cd.writeUInt16LE(20, 4);
+  cd.writeUInt16LE(20, 6);
+  cd.writeUInt16LE(8, 10);
+  cd.writeUInt32LE(crc, 16);
+  cd.writeUInt32LE(compressed.length, 20);
+  cd.writeUInt32LE(data.length, 24);
+  cd.writeUInt16LE(nameBytes.length, 28);
+  nameBytes.copy(cd, 46);
+
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(1, 8);
+  eocd.writeUInt16LE(1, 10);
+  eocd.writeUInt32LE(cd.length, 12);
+  eocd.writeUInt32LE(local.length + compressed.length, 16);
+
+  const buffer = Buffer.concat([local, compressed, cd, eocd]);
+  await t.throwsAsync(async () => convertDocxToHtml(buffer), {
+    message: /Invalid DOCX/,
+  });
+});

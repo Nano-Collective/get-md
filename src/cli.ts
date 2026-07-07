@@ -121,12 +121,14 @@ const program = new Command();
 
 program
   .name("get-md")
-  .description("Convert HTML and DOCX to LLM-optimized Markdown")
+  .description(
+    "Convert HTML, PDF, DOCX, and Markdown to LLM-optimized Markdown",
+  )
   .version(pkg.version);
 
 // Main conversion command
 program
-  .argument("[input]", "HTML/DOCX file path, URL, or stdin")
+  .argument("[input]", "HTML/PDF/DOCX/Markdown file path, URL, or stdin")
   .option("-o, --output <file>", "Output file (default: stdout)")
   .option("--no-extract", "Disable Readability content extraction")
   .option("--no-frontmatter", "Exclude metadata from YAML frontmatter")
@@ -327,7 +329,7 @@ async function getInput(input?: string): Promise<{
   content: string | Buffer;
   inputType: "html" | "markdown" | "pdf";
 }> {
-  let inputType: "html" | "markdown" | "pdf" = detectInputType(
+  const inputType: "html" | "markdown" | "pdf" = detectInputType(
     input ?? "",
   ) as any;
   // Read from URL
@@ -389,16 +391,16 @@ async function handleMarkdownInput(
 ): Promise<void> {
   const fileConfig = loadConfig();
 
-  // Build options — markdown input skips HTML-specific options
-  // (extractContent, includeImages, includeLinks, includeTables)
-  // since those only apply to HTML→Markdown conversion.
+  // Build options. Readability content extraction is N/A for markdown input,
+  // but the content filters (--no-images/--no-links/--no-tables) DO apply —
+  // a markdown file can contain images, links, and tables a user may want
+  // stripped, so we forward the real flags.
   const cliOptions: MarkdownOptions = {
-    // Content extraction and HTML-specific filters are N/A for markdown input
     extractContent: false,
     includeMeta: options.frontmatter,
-    includeImages: false,
-    includeLinks: false,
-    includeTables: false,
+    includeImages: options.images,
+    includeLinks: options.links,
+    includeTables: options.tables,
     maxLength: parseInt(options.maxLength, 10),
     baseUrl: options.baseUrl,
     // Signal to convertToMarkdown to skip HTML parsing

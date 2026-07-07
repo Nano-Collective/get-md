@@ -76,6 +76,33 @@ test("Calibre demo.docx: tables are present", async (t) => {
   t.true(result.markdown.includes("---"), "has table separators");
 });
 
+test("Calibre demo.docx: list types resolved from numbering.xml", async (t) => {
+  const docxBuffer = readFileSync(join(FIXTURES, "calibre-demo.docx"));
+  const result = await convertDocxToMarkdown(docxBuffer, {
+    includeMeta: false,
+  });
+
+  // The "Bulleted List" section (numId→bullet) must render as a bullet list...
+  t.regex(
+    result.markdown,
+    /## Bulleted List\s+- One/,
+    "bulleted list renders with '-'",
+  );
+  // ...and the "Numbered List" section (numId→decimal) as an ordered list.
+  t.regex(
+    result.markdown,
+    /## Numbered List\s+1\.\s+One/,
+    "numbered list renders with '1.'",
+  );
+  // The multi-level bullet list item that describes itself as a bullet must
+  // be a bullet — the old numId-parity heuristic got this wrong.
+  t.regex(
+    result.markdown,
+    /- This bullet uses an image as the bullet item/,
+    "image-bullet item renders as a bullet",
+  );
+});
+
 test("Calibre demo.docx: word count is reasonable", async (t) => {
   const docxBuffer = readFileSync(join(FIXTURES, "calibre-demo.docx"));
   const result = await convertDocxToMarkdown(docxBuffer, {

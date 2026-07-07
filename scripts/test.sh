@@ -7,6 +7,14 @@ set -e
 echo "🧪 Running all tests..."
 echo ""
 
+# Build first — the CLI e2e tests spawn the compiled bin/get-md.js (which loads
+# dist/). Without a fresh build they'd run against stale compiled output.
+echo "🏗️  Building..."
+pnpm build
+echo ""
+echo "✅ Build complete"
+echo ""
+
 echo "📝 Checking code formatting..."
 pnpm test:format
 echo ""

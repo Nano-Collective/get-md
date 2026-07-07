@@ -1,5 +1,8 @@
 // src/index.spec.ts
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "ava";
 import {
   convertToMarkdown,
@@ -1058,4 +1061,123 @@ test("convertToMarkdown: escapes HTML in PDF content to prevent injection", asyn
   // The raw HTML tag should be preserved in the markdown output as text,
   // rather than being parsed and stripped by the HTML parser.
   t.true(result.markdown.includes("<script>alert(1)</script>"));
+});
+
+// ============================================================================
+// Binary buffer routing (PDF / DOCX)
+// ============================================================================
+
+const DOCX_FIXTURE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "test-fixtures",
+  "docx-fidelity",
+  "calibre-demo.docx",
+);
+
+test("convertToMarkdown: routes a DOCX Buffer through the DOCX converter", async (t) => {
+  const buffer = readFileSync(DOCX_FIXTURE);
+  const result = await convertToMarkdown(buffer, { includeMeta: false });
+
+  t.true(result.markdown.length > 5000, "produces substantial markdown");
+  t.true(
+    result.markdown.includes("# Demonstration of DOCX support"),
+    "extracts the DOCX heading",
+  );
+});
+
+test("convertToMarkdown: throws a clear error on an unsupported binary buffer", async (t) => {
+  const buffer = Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04, 0x05]);
+  await t.throwsAsync(async () => convertToMarkdown(buffer), {
+    message: /Unsupported binary format/,
+  });
+});
+
+test("convertToMarkdown: empty PDF returns empty markdown with real inputLength", async (t) => {
+  // Valid PDF structure with no text content.
+  const pdfBuffer = Buffer.from(
+    "%PDF-1.1\n" +
+      "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n" +
+      "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n" +
+      "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>\nendobj\n" +
+      "trailer\n<< /Size 4 /Root 1 0 R >>\n%%EOF",
+    "binary",
+  );
+  const result = await convertToMarkdown(pdfBuffer);
+
+  t.is(result.markdown, "", "no text → empty markdown");
+  t.true(
+    result.stats.inputLength > 0,
+    "inputLength reflects the PDF byte size, not 0",
+  );
+});
+
+// ============================================================================
+// ContentSource + markdown-input pipeline
+// ============================================================================
+
+test("convertToMarkdown: routes ContentSource type 'markdown' to the markdown pipeline", async (t) => {
+  const source = {
+    type: "markdown" as const,
+    content: "# Title\n\nSome body text long enough to be an excerpt.\n",
+  };
+  const result = await convertToMarkdown(source, { includeMeta: true });
+
+  t.is(result.metadata.title, "Title");
+  t.true(result.markdown.includes("# Title"));
+});
+
+test("convertToMarkdown: markdown input preserves existing frontmatter (no double block)", async (t) => {
+  const md =
+    "---\ntitle: Real Title\nauthor: Jane\n---\n\n# Body Heading\n\nBody text here for excerpt.\n";
+  const result = await convertToMarkdown(md, {
+    inputType: "markdown",
+    includeMeta: true,
+  });
+
+  // Exactly one frontmatter block (two `---` fences).
+  const fenceCount = (result.markdown.match(/^---$/gm) ?? []).length;
+  t.is(fenceCount, 2, "only one frontmatter block");
+  // The real title wins over the first H1.
+  t.is(result.metadata.title, "Real Title");
+  t.true(result.markdown.includes("title: Real Title"));
+  t.false(
+    result.markdown.includes("title: Body Heading"),
+    "does not clobber the real title with the H1",
+  );
+});
+
+test("convertToMarkdown: markdown input honors includeLinks:false", async (t) => {
+  const md = "# T\n\nSee [this link](https://example.com) here.\n";
+  const result = await convertToMarkdown(md, {
+    inputType: "markdown",
+    includeLinks: false,
+    includeMeta: false,
+  });
+
+  t.true(result.markdown.includes("See this link here."));
+  t.false(result.markdown.includes("]("), "link markup removed");
+});
+
+test("convertToMarkdown: markdown input honors includeTables:false", async (t) => {
+  const md =
+    "# T\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\nAfter the table.\n";
+  const result = await convertToMarkdown(md, {
+    inputType: "markdown",
+    includeTables: false,
+    includeMeta: false,
+  });
+
+  t.false(result.markdown.includes("| A |"), "table removed");
+  t.true(result.markdown.includes("After the table."));
+});
+
+test("convertToMarkdown: markdown input defaults includeMeta to true", async (t) => {
+  const result = await convertToMarkdown("# Hello\n\nBody.\n", {
+    inputType: "markdown",
+  });
+  t.true(
+    result.markdown.startsWith("---"),
+    "frontmatter emitted by default (parity with HTML path)",
+  );
 });
