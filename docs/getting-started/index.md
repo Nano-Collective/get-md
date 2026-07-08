@@ -6,7 +6,7 @@ sidebar_order: 3
 
 # Getting Started
 
-This section covers everything you need to go from zero to your first HTML-to-Markdown conversion.
+This section covers everything you need to go from zero to your first conversion — HTML, PDF, DOCX, or Markdown into clean, LLM-optimized Markdown.
 
 ## In This Section
 

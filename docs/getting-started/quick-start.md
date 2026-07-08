@@ -6,7 +6,7 @@ sidebar_order: 2
 
 # Quick Start
 
-This guide walks you through the basics: converting HTML to Markdown using the library and the CLI.
+This guide walks you through the basics: converting HTML, PDF, DOCX, and Markdown to clean Markdown using the library and the CLI.
 
 ## 1. Install get-md
 
@@ -41,22 +41,44 @@ const result = await convertToMarkdown(html);
 console.log(result.markdown);
 ```
 
-## 4. Use the CLI
+## 4. Convert a PDF, DOCX, or Markdown File
+
+Pass a `Buffer` and get-md auto-detects PDF vs. DOCX from its magic bytes. For
+existing Markdown, set `inputType: "markdown"`:
+
+```typescript
+import { convertToMarkdown } from "@nanocollective/get-md";
+import { promises as fs } from "fs";
+
+// PDF — title/author flow into the frontmatter; text is reflowed into structure
+const pdf = await convertToMarkdown(await fs.readFile("handbook.pdf"));
+
+// DOCX
+const docx = await convertToMarkdown(await fs.readFile("report.docx"));
+
+// Existing Markdown — skips HTML parsing, just optimizes
+const md = await convertToMarkdown(await fs.readFile("notes.md", "utf-8"), {
+  inputType: "markdown",
+});
+```
+
+## 5. Use the CLI
 
 ```bash
 # From a URL
 getmd https://example.com -o output.md
 
-# From a file (HTML, PDF, DOCX, or Markdown)
+# From a file — the type is detected from the extension
 getmd article.html -o article.md
 getmd handbook.pdf -o handbook.md
 getmd document.docx -o document.md
+getmd notes.md -o notes.clean.md
 
-# From stdin
+# From stdin (HTML, or a PDF via its magic bytes)
 echo '<h1>Hello</h1>' | getmd
 ```
 
-## 5. Try LLM-Powered Conversion (Optional)
+## 6. Try LLM-Powered Conversion (Optional)
 
 For higher quality output, use the optional local LLM model:
 

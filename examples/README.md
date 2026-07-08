@@ -52,7 +52,7 @@ npx tsx examples/llm-model-management.ts
 - `downloadLLMModel()` - Download with progress tracking
 - `removeLLMModel()` - Remove the model
 
-**Note:** First run will download ~986MB model file.
+**Note:** First run will download the ~1.12GB ReaderLM-v2 model file.
 
 ---
 
@@ -118,6 +118,15 @@ echo '<h1>Hello</h1><p>World</p>' | ./bin/get-md.js
 # Convert URL
 ./bin/get-md.js https://example.com
 
+# Convert a PDF (title/author flow into the frontmatter)
+./bin/get-md.js handbook.pdf -o handbook.md
+
+# Convert a DOCX file
+./bin/get-md.js report.docx -o report.md
+
+# Optimize an existing Markdown file
+./bin/get-md.js notes.md -o notes.clean.md
+
 # Convert with LLM
 ./bin/get-md.js https://example.com --use-llm
 
@@ -160,6 +169,13 @@ Use this checklist to verify all features work:
 - [ ] `npx tsx examples/basic-usage.ts` - Shows markdown output
 - [ ] `echo '<h1>Test</h1>' | ./bin/get-md.js` - CLI stdin works
 - [ ] `./bin/get-md.js https://example.com` - URL fetching works
+
+### Multi-format Input
+- [ ] `./bin/get-md.js handbook.pdf` - PDF converts (headings/paragraphs/lists, metadata in frontmatter)
+- [ ] `cat handbook.pdf | ./bin/get-md.js` - PDF via stdin (%PDF magic-byte detection)
+- [ ] `./bin/get-md.js report.docx` - DOCX converts (headings, tables, lists)
+- [ ] `./bin/get-md.js notes.md` - Markdown file is optimized, not HTML-parsed
+- [ ] `./bin/get-md.js notes.md --no-links` - Markdown content filters are honored
 
 ### LLM Features
 - [ ] `./bin/get-md.js --model-info` - Shows model information

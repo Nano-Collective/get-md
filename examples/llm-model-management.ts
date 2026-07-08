@@ -36,7 +36,7 @@ async function main() {
   // 3. Download model (if not available)
   if (!status.available) {
     console.log("\n3. Model not found. Starting download...");
-    console.log("   (This will download ~986MB, press Ctrl+C to cancel)\n");
+    console.log("   (This will download ~1.12GB, press Ctrl+C to cancel)\n");
 
     try {
       const modelPath = await downloadLLMModel({

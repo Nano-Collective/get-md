@@ -1,3 +1,41 @@
+# 1.6.0
+
+get-md is no longer HTML-only. This release adds **PDF, DOCX, and Markdown** ingestion alongside HTML and URLs — pass a file, a `Buffer`, or a URL and get-md routes it to the right extractor automatically — plus a launch-hardening pass over the whole multi-format surface.
+
+## New features
+
+### Multi-format input (PDF, DOCX, Markdown)
+
+`convertToMarkdown` now accepts more than HTML strings and URLs — pass a `Buffer` or `ContentSource` and get-md routes it to the right extractor automatically. The CLI detects the format from the file extension (or, for stdin, the PDF magic bytes).
+
+- **PDF** — pass a PDF `Buffer` (auto-detected via the `%PDF` magic bytes) or point the CLI at a `.pdf` file or URL. Text is reconstructed into real structure: wrapped lines reflow into paragraphs, ALL-CAPS lines become headings, `•`/numbered lines become lists (folding wrapped continuations), and repeated running headers/footers are dropped. Title, author, and creation date are pulled from the PDF info dictionary into the frontmatter. Readability is disabled for PDFs so body text is never dropped, and `-- N of M --` page markers are stripped. Scanned/text-less PDFs return an empty result with a non-zero `inputLength` (a signal OCR is needed). Powered by `pdf-parse`.
+- **DOCX** — pass a DOCX `Buffer` (auto-detected via the ZIP/`PK` magic bytes) or point the CLI at a `.docx` file or URL. New exports `convertDocxToMarkdown(buffer, options)` and `convertDocxToHtml(buffer)`. Supports headings, bold/italic/underline/strikethrough, tables, and ordered/unordered lists — list type is resolved from `word/numbering.xml` (not guessed). Decompression is capped at 100 MB and corrupt/encrypted/`document.xml`-less archives raise clear errors. Powered by `node-stream-zip`.
+- **Markdown input** — `.md`/`.markdown` files (or `inputType: "markdown"` / a `ContentSource` with `type: "markdown"`) skip HTML parsing and run only the optimization passes: metadata, frontmatter, and structure normalization. Existing frontmatter is preserved (your `title`/`author` are kept; only computed `wordCount`/`readingTime` are appended — no stacked second block), and `--no-links`/`--no-images`/`--no-tables` are honored.
+- **CLI** — the tool now advertises all four formats; input type is auto-detected from the extension (or the `%PDF` magic bytes on stdin).
+
+## Bug fixes & hardening
+
+A top-to-bottom review of the new multi-format surface before launch:
+
+- **PDF no longer loses body text** — Readability was running on PDF-derived HTML and could strip content it scored as boilerplate; it's now disabled for PDF input, matching DOCX.
+- **PDF page-marker noise removed** — `pdf-parse`'s `-- N of M --` page separators no longer leak into the output.
+- **PDF metadata & structure** — title/author/date now flow into the frontmatter, and extracted text is reconstructed into headings/paragraphs/lists instead of one flat blob.
+- **DOCX list types are correct** — ordered vs. unordered is resolved from `word/numbering.xml` instead of a `numId`-parity guess that flipped lists at random.
+- **DOCX tables** — nested tables no longer corrupt the outer table (direct-children traversal); decompression is bounded and archive errors are clear.
+- **DOCX buffers via `convertToMarkdown`** — a DOCX `Buffer` now converts through `convertToMarkdown` (PK-zip detection), matching the PDF buffer path instead of throwing.
+- **Markdown input** — feeding a `.md` file that already had frontmatter no longer produces a doubled block or clobbers the real title; `--no-links`/`--no-images`/`--no-tables` are now honored for Markdown input.
+- **Build before test** — `scripts/test.sh` and the badges workflow now build first, since the CLI end-to-end tests spawn the compiled `bin/get-md.js` (stale `dist/` would skew results).
+
+## Documentation
+
+- Multi-format documentation across the site: the Conversion API page now covers PDF/DOCX buffers, binary auto-detection, `inputType`, the `convertDocx*` exports, and Markdown input; the CLI reference documents format detection and the DOCX/`.md` input paths; Getting Started and Quick Start show PDF/DOCX/Markdown examples.
+
+## Tests
+
+592 passing (up from 528 at 1.5.0). Adds coverage for: PDF extraction, page-marker stripping, info-dict metadata, and structure reconstruction; DOCX buffer routing, `numbering.xml` list resolution, and corrupt-archive errors; Markdown-input frontmatter preservation and content filtering; and real DOCX/PDF CLI end-to-end.
+
+If there are any problems, feedback or thoughts please drop an issue or message us through Discord! Thank you for using get-md.
+
 # 1.5.0
 
 Big release. Adds a pluggable LLM backend, batch + sitemap crawling, image localization, an HTTP cache with retry/backoff, and the helper functions that make get-md useful as a RAG ingestion building block. Plus a sweep of bug fixes from a top-to-bottom review of the 1.4.x surface.

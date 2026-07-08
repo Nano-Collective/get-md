@@ -10,7 +10,7 @@ Complete reference for the get-md library API.
 
 ## In This Section
 
-- [Conversion API](convert-to-markdown.md) — `convertToMarkdown`, `MarkdownOptions`, `MarkdownResult`
+- [Conversion API](convert-to-markdown.md) — `convertToMarkdown`, `convertDocxToMarkdown`, `MarkdownOptions`, `MarkdownResult`
 - [Batch API](batch.md) — `convertBatch`, `convertBatchAll`, types
 - [Sitemap API](sitemap.md) — `parseSitemap`, `convertSitemap`, `parseSitemapXml`
 - [Utilities](utilities.md) — `chunkMarkdown`, `estimateTokens`, `hasContent`, config-loader
@@ -22,7 +22,9 @@ Complete reference for the get-md library API.
 
 | Function | Description |
 |----------|-------------|
-| [`convertToMarkdown()`](convert-to-markdown.md) | Convert HTML or a URL to clean Markdown |
+| [`convertToMarkdown()`](convert-to-markdown.md) | Convert HTML, a URL, a PDF/DOCX buffer, or Markdown to clean Markdown |
+| [`convertDocxToMarkdown()`](convert-to-markdown.md#convertdocxtomarkdown--convertdocxtohtml) | Convert a DOCX buffer to a `MarkdownResult` |
+| [`convertDocxToHtml()`](convert-to-markdown.md#convertdocxtomarkdown--convertdocxtohtml) | Convert a DOCX buffer to intermediate HTML |
 | [`hasContent()`](utilities.md#hascontent) | Cheap check for whether HTML has substantive text content |
 
 ### Batch & sitemap

@@ -18,18 +18,40 @@ Convert documents (HTML, PDF, DOCX, Markdown) to clean, LLM-optimized Markdown.
 import { convertToMarkdown } from "@nanocollective/get-md";
 import { promises as fs } from "fs";
 
-// From HTML string or URL
+// From an HTML string or a URL
 const result = await convertToMarkdown(htmlOrUrl, options?);
 
-// From a PDF Buffer
+// From a PDF Buffer (auto-detected via the %PDF magic bytes)
 const pdf = await fs.readFile("handbook.pdf");
-const md = await convertToMarkdown(pdf);
+const pdfResult = await convertToMarkdown(pdf);
+
+// From a DOCX Buffer (auto-detected via the ZIP/PK magic bytes)
+const docx = await fs.readFile("report.docx");
+const docxResult = await convertToMarkdown(docx);
+
+// From an existing Markdown string (skips HTML parsing)
+const mdResult = await convertToMarkdown(markdownText, { inputType: "markdown" });
 ```
 
 ### Parameters
 
-- `input` (string | Buffer) — Raw HTML string, URL to fetch, or a Buffer (e.g. read from a PDF file)
+- `input` (`string | Buffer | ContentSource`) — one of:
+  - **string** — a raw HTML string, or a URL to fetch (auto-detected). With `inputType: "markdown"`, the string is treated as existing Markdown.
+  - **Buffer** — a binary document, auto-detected by its magic bytes: `%PDF` → PDF, `PK` (ZIP) → DOCX. Any other binary throws `Unsupported binary format: expected a PDF (%PDF) or DOCX (ZIP) buffer.`
+  - **ContentSource** — `{ type, content, metadata? }`. Use `{ type: "markdown", content }` to route through the Markdown pipeline, or `{ type: "html", content }` for HTML. (To convert real PDF/DOCX, pass a Buffer, not a ContentSource — a `ContentSource` `content` is always a string.)
 - `options` (MarkdownOptions) — Conversion options (optional)
+
+### Input format detection
+
+| Input | Handled as |
+|-------|-----------|
+| HTML string, or URL (incl. `http(s)://…`) | HTML → Markdown (Readability + Turndown) |
+| URL ending in `.pdf` | fetched as a buffer and parsed as PDF |
+| Buffer starting with `%PDF` | PDF — text extracted, then reconstructed into headings/paragraphs/lists |
+| Buffer starting with `PK` (ZIP) | DOCX — OOXML parsed to Markdown |
+| string + `inputType: "markdown"`, or `ContentSource` `{ type: "markdown" }` | existing Markdown — HTML parsing skipped |
+
+See [Working with PDF and DOCX](#working-with-pdf-and-docx) and [Markdown input](#markdown-input) below.
 
 ### Returns
 
@@ -74,6 +96,7 @@ interface MarkdownOptions {
   aggressiveCleanup?: boolean;    // Remove ads, nav, etc. (default: true)
   maxLength?: number;             // Max output length (default: 1000000)
   baseUrl?: string;               // Base URL for resolving relative links
+  inputType?: "html" | "markdown"; // Treat a string input as existing Markdown (default: "html")
 
   // URL fetch options (only used when input is a URL)
   isUrl?: boolean;                // Force treat input as URL (default: auto-detect)
@@ -122,6 +145,7 @@ interface MarkdownOptions {
 | `aggressiveCleanup` | boolean | `true` | Apply aggressive cleanup to remove ads, cookie notices, and other non-content elements |
 | `maxLength` | number | `1000000` | Maximum character length of the output Markdown |
 | `baseUrl` | string | — | Base URL for resolving relative links in the HTML |
+| `inputType` | `"html" \| "markdown"` | `"html"` | When `"markdown"`, treats a string input as existing Markdown and skips HTML parsing — see [Markdown input](#markdown-input) |
 
 ### URL Fetch Options
 
@@ -232,6 +256,88 @@ const result = await convertToMarkdown("https://example.com", {
   },
 });
 ```
+
+## Working with PDF and DOCX
+
+Pass a `Buffer` and get-md auto-detects the format from its magic bytes — no
+option needed:
+
+```typescript
+import { convertToMarkdown } from "@nanocollective/get-md";
+import { promises as fs } from "fs";
+
+// PDF
+const pdf = await convertToMarkdown(await fs.readFile("handbook.pdf"));
+
+// DOCX
+const docx = await convertToMarkdown(await fs.readFile("report.docx"));
+```
+
+**PDF behavior:**
+
+- Title, author, and creation date are pulled from the PDF's info dictionary
+  into `result.metadata` (and the YAML frontmatter when `includeMeta` is on).
+- Extracted text is reconstructed into structure: wrapped lines are reflowed
+  into paragraphs, ALL-CAPS lines become headings, bullet/numbered lines become
+  lists, and repeated running headers/footers are dropped.
+- Readability extraction is forced off for PDFs (it would strip body text).
+- A URL ending in `.pdf` is fetched as a buffer and parsed the same way:
+  `await convertToMarkdown("https://example.com/handbook.pdf")`.
+- A scanned or text-less PDF returns an empty `markdown` with a non-zero
+  `stats.inputLength` — a signal that OCR would be needed.
+
+**DOCX** is handled by the dedicated converter, which is also exported directly —
+see [`convertDocxToMarkdown` / `convertDocxToHtml`](#convertdocxtomarkdown--convertdocxtohtml).
+
+## Markdown input
+
+When the input is already Markdown, set `inputType: "markdown"` (the CLI does
+this automatically for `.md` / `.markdown` files). This skips HTML parsing and
+runs only the optimization passes — metadata extraction, frontmatter, and
+structure normalization:
+
+```typescript
+const result = await convertToMarkdown(markdownText, {
+  inputType: "markdown",
+  includeLinks: false,  // strip links
+  includeTables: false, // strip tables
+});
+```
+
+- `includeLinks`, `includeImages`, and `includeTables` are honored (links/
+  images/tables are stripped from the Markdown when set to `false`).
+- If the input already has YAML frontmatter, it's preserved — get-md keeps your
+  `title`/`author` and only appends computed `wordCount`/`readingTime` rather
+  than stacking a second block.
+- Equivalent to passing a `ContentSource`: `convertToMarkdown({ type: "markdown", content: markdownText })`.
+
+## convertDocxToMarkdown / convertDocxToHtml
+
+Dedicated DOCX helpers, exported from the package root:
+
+```typescript
+import {
+  convertDocxToMarkdown,
+  convertDocxToHtml,
+} from "@nanocollective/get-md";
+import { promises as fs } from "fs";
+
+const buffer = await fs.readFile("report.docx");
+
+// DOCX → MarkdownResult (markdown + metadata + stats)
+const result = await convertDocxToMarkdown(buffer, options?);
+
+// DOCX → intermediate HTML (if you want to run your own pipeline)
+const html = await convertDocxToHtml(buffer);
+```
+
+- `convertDocxToMarkdown(buffer, options?)` extracts the OOXML, converts it to
+  clean HTML, and runs it through the standard pipeline (Readability is disabled
+  — the DOCX HTML is already clean). Accepts the same `MarkdownOptions`.
+- Supports headings, bold/italic/underline/strikethrough, ordered/unordered
+  lists (resolved from `numbering.xml`), and tables. Embedded images are not yet
+  extracted.
+- `convertToMarkdown(docxBuffer)` is a convenience wrapper around this.
 
 ## See Also
 

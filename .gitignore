@@ -1,6 +1,10 @@
 # Dependencies
 node_modules
 
+# This project uses pnpm — don't commit npm/yarn lockfiles
+package-lock.json
+yarn.lock
+
 # Build output
 dist
 *.tsbuildinfo
