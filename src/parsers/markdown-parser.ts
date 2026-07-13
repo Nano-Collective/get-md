@@ -9,6 +9,7 @@ import { RemoteLlmConverter } from "../converters/remote-llm-converter.js";
 import { extractMetadata } from "../extractors/metadata-extractor.js";
 import { cleanHTML } from "../optimizers/html-cleaner.js";
 import { formatForLLM } from "../optimizers/llm-formatter.js";
+import { recoverMermaid } from "../optimizers/mermaid-recovery.js";
 import { enhanceStructure } from "../optimizers/structure-enhancer.js";
 import type {
   ContentMetadata,
@@ -446,8 +447,8 @@ export class MarkdownParser {
     metadata: ContentMetadata;
     readabilitySuccess: boolean;
   }> {
-    // Step 1: Extract main content using Readability
-    let contentHtml = html;
+    // Step 0: Recover mermaid diagrams before they get stripped
+    let contentHtml = recoverMermaid(html);
     let metadata: ContentMetadata = {};
     let readabilitySuccess = false;
 
@@ -502,8 +503,10 @@ export class MarkdownParser {
     metadata: ContentMetadata;
     readabilitySuccess: boolean;
   } {
+    // Step 0: Recover mermaid diagrams before they get stripped
+    let contentHtml = recoverMermaid(html);
+
     // Skip content extraction in sync version (requires async)
-    let contentHtml = html;
     let metadata: ContentMetadata = {};
     const readabilitySuccess = false;
 
