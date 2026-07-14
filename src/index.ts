@@ -83,7 +83,7 @@ export async function convertToMarkdown(
   input: string | Buffer | ContentSource,
   options?: MarkdownOptions,
 ): Promise<MarkdownResult> {
-  let contentSource: ContentSource;
+  let contentSource: ContentSource | undefined;
   let baseUrl = options?.baseUrl;
   let inputHtml = "";
   // When the source is a binary document (PDF), we synthesize HTML from
@@ -108,6 +108,26 @@ export async function convertToMarkdown(
       }
       inputHtml = buildPdfHtml(reconstructPdfHtml(pdfPages), pdfMeta);
       forceExtractContentOff = true;
+
+      // If LLM is enabled, optionally render pages to images to allow vision models
+      // to recover diagrams from the PDF.
+      let images: Buffer[] | undefined;
+      if (options?.useLLM) {
+        try {
+          const { renderPdfToImages } = await import(
+            "./extractors/pdf-renderer.js"
+          );
+          const rendered = await renderPdfToImages(buffer);
+          images = rendered.map((r) => r.imageBuffer);
+        } catch (err) {
+          // Fallback gracefully if rendering fails or optional dependencies are missing
+          console.warn(
+            "PDF rendering failed or optional dependencies missing, skipping vision reconstruction:",
+            err,
+          );
+        }
+      }
+      contentSource = { type: "html", content: inputHtml, images };
     } else if (buffer.subarray(0, 2).toString("latin1") === "PK") {
       // ZIP-based Office Open XML (.docx). Route to the dedicated converter,
       // which extracts the OOXML and feeds it back through this pipeline.
@@ -120,7 +140,7 @@ export async function convertToMarkdown(
         "Unsupported binary format: expected a PDF (%PDF) or DOCX (ZIP) buffer.",
       );
     }
-    contentSource = { type: "html", content: inputHtml };
+    contentSource = contentSource || { type: "html", content: inputHtml };
   } else if (typeof input === "string") {
     inputHtml = input;
     if (options?.isUrl || isValidUrl(input)) {
@@ -154,12 +174,29 @@ export async function convertToMarkdown(
         }
         inputHtml = buildPdfHtml(reconstructPdfHtml(pdfPages), pdfMeta);
         forceExtractContentOff = true;
+
+        let images: Buffer[] | undefined;
+        if (options?.useLLM) {
+          try {
+            const { renderPdfToImages } = await import(
+              "./extractors/pdf-renderer.js"
+            );
+            const rendered = await renderPdfToImages(buffer);
+            images = rendered.map((r) => r.imageBuffer);
+          } catch (err) {
+            console.warn(
+              "PDF rendering failed or optional dependencies missing, skipping vision reconstruction:",
+              err,
+            );
+          }
+        }
+        contentSource = { type: "html", content: inputHtml, images };
       } else {
         inputHtml = await fetchUrl(input, fetchOptions);
       }
       baseUrl = baseUrl || input;
     }
-    contentSource = { type: "html", content: inputHtml };
+    contentSource = contentSource || { type: "html", content: inputHtml };
   } else {
     // ContentSource: honor a `markdown` type by routing to the markdown
     // pipeline (the same behavior as the `inputType: "markdown"` option).
@@ -187,7 +224,7 @@ export async function convertToMarkdown(
 
   // Use async path to enable Readability content extraction
   // sync path doesn't support content extraction
-  const result = await parser.convertAsync(contentSource, convertOptions);
+  const result = await parser.convertAsync(contentSource as ContentSource, convertOptions);
 
   // Optional post-processing: download every referenced image into a local
   // directory and rewrite the src. Per-image failures are logged inside,
