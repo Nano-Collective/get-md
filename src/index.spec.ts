@@ -1192,3 +1192,17 @@ test("convertToMarkdown: markdown input defaults includeMeta to true", async (t)
     "frontmatter emitted by default (parity with HTML path)",
   );
 });
+
+test("convertToMarkdown: validateMermaid catches invalid mermaid", async (t) => {
+  const md = `
+Test
+\`\`\`mermaid
+graph TD
+A -->
+\`\`\`
+`;
+  const result = await convertToMarkdown(md, { inputType: "markdown", validateMermaid: true });
+  t.regex(result.markdown, /> \[!WARNING\]/);
+  t.regex(result.markdown, /Invalid Mermaid syntax/);
+  t.regex(result.markdown, /```mermaid/);
+});

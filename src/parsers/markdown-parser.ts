@@ -261,7 +261,8 @@ type DefaultedOptionKeys =
   | "useLLM"
   | "llmTemperature"
   | "llmMaxTokens"
-  | "llmFallback";
+  | "llmFallback"
+  | "validateMermaid";
 
 type NormalizedMarkdownOptions = Required<
   Pick<MarkdownOptions, DefaultedOptionKeys>
@@ -1209,6 +1210,7 @@ export class MarkdownParser {
       includeLinks: options.includeLinks ?? true,
       includeTables: options.includeTables ?? true,
       aggressiveCleanup: options.aggressiveCleanup ?? true,
+      validateMermaid: options.validateMermaid ?? false,
 
       // URL fetching options
       isUrl: options.isUrl,

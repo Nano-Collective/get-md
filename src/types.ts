@@ -273,6 +273,9 @@ export interface MarkdownOptions {
   /** Aggressive noise removal (default: true) */
   aggressiveCleanup?: boolean;
 
+  /** Validate generated Mermaid parses (default: false) */
+  validateMermaid?: boolean;
+
   /** Force treat input as URL (bypasses auto-detection) */
   isUrl?: boolean;
 

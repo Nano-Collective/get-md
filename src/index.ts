@@ -176,18 +176,20 @@ export async function convertToMarkdown(
     convertOptions.extractContent = false;
   }
 
+  let result: MarkdownResult;
+
   // When the caller signals "markdown" input, skip HTML parsing entirely.
   // We still run metadata extraction, frontmatter generation, and
   // post-processing so markdown files benefit from the same optimization
   // pipeline as HTML→Markdown conversions — without unnecessary HTML
   // parsing overhead.
   if (options?.inputType === "markdown") {
-    return await convertMarkdownInput(inputHtml, convertOptions);
+    result = await convertMarkdownInput(inputHtml, convertOptions);
+  } else {
+    // Use async path to enable Readability content extraction
+    // sync path doesn't support content extraction
+    result = await parser.convertAsync(contentSource, convertOptions);
   }
-
-  // Use async path to enable Readability content extraction
-  // sync path doesn't support content extraction
-  const result = await parser.convertAsync(contentSource, convertOptions);
 
   // Optional post-processing: download every referenced image into a local
   // directory and rewrite the src. Per-image failures are logged inside,
@@ -206,6 +208,13 @@ export async function convertToMarkdown(
       baseUrl: baseUrl,
     });
     result.markdown = localized.markdown;
+  }
+
+  if (options?.validateMermaid) {
+    const { validateMermaid } = await import(
+      "./optimizers/mermaid-validator.js"
+    );
+    result.markdown = await validateMermaid(result.markdown);
   }
 
   return result;
