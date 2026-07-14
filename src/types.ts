@@ -239,6 +239,8 @@ export interface ContentSource {
   content: string;
   /** Optional metadata passed along to the final output */
   metadata?: Record<string, unknown>;
+  /** Optional images (e.g. from rendered PDF pages) to pass to vision models */
+  images?: Buffer[];
 }
 
 /** Options for HTML to Markdown conversion */
