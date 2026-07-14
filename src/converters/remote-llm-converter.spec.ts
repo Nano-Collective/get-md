@@ -164,3 +164,45 @@ test("RemoteLlmConverter: isLoaded() always returns true and unload() is a no-op
   await converter.unload();
   t.true(converter.isLoaded());
 });
+
+test("RemoteLlmConverter: uses VISION_SYSTEM_PROMPT and messages when images are provided", async (t) => {
+  let requestBody: any;
+  global.fetch = (async (url: string, init: any) => {
+    requestBody = JSON.parse(init.body);
+    return mockOpenAiCompatibleResponse("Mocked vision response")(url, init);
+  }) as any;
+
+  const converter = createRemoteLlmConverter({
+    config: {
+      sdkProvider: "openai-compatible",
+      baseUrl: "https://openrouter.ai/api/v1",
+      apiKey: "sk-test",
+      model: "vision-model",
+    },
+  });
+
+  const dummyImage = Buffer.from("dummy-image-data");
+  const markdown = await converter.convert("<h1>Has Images</h1>", [dummyImage]);
+
+  t.is(markdown, "Mocked vision response");
+  
+  // The system prompt should contain "images of the rendered page"
+  const systemMessage = requestBody.messages.find((m: any) => m.role === "system");
+  t.truthy(systemMessage, "Should have a system message");
+  t.regex(systemMessage.content, /images of the rendered page/i);
+
+  // The user prompt should be a message with text and image parts
+  const userMessage = requestBody.messages.find((m: any) => m.role === "user");
+  t.truthy(userMessage, "Should have a user message");
+  
+  // Vercel AI SDK translates the internal representation into API-specific parts.
+  // We just verify it has the content array indicating a multimodal message.
+  t.true(Array.isArray(userMessage.content), "User content should be an array of parts");
+  
+  const textPart = userMessage.content.find((p: any) => p.type === "text");
+  t.truthy(textPart, "Should have a text part");
+  t.regex(textPart.text, /Has Images/);
+
+  const imagePart = userMessage.content.find((p: any) => p.type === "image_url");
+  t.truthy(imagePart, "Should have an image part");
+});

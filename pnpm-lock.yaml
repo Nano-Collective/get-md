@@ -11,6 +11,9 @@ importers:
       '@mozilla/readability':
         specifier: ^0.6.0
         version: 0.6.0
+      '@napi-rs/canvas':
+        specifier: 0.1.80
+        version: 0.1.80
       cheerio:
         specifier: ^1.1.2
         version: 1.2.0
@@ -32,6 +35,9 @@ importers:
       pdf-parse:
         specifier: ^2.4.5
         version: 2.4.5
+      pdfjs-dist:
+        specifier: 5.4.296
+        version: 5.4.296
       turndown:
         specifier: ^7.2.2
         version: 7.2.4
