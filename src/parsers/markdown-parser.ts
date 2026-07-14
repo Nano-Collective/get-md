@@ -454,7 +454,10 @@ export class MarkdownParser {
 
     if (opts.extractContent) {
       try {
-        const extracted = await this.extractMainContent(html, opts.baseUrl);
+        const extracted = await this.extractMainContent(
+          contentHtml,
+          opts.baseUrl,
+        );
         if (extracted) {
           contentHtml = extracted.content;
           metadata = extracted.metadata;
@@ -799,6 +802,7 @@ export class MarkdownParser {
       // happy-dom-without-node implements enough of the DOM API for Readability
       const reader = new Readability(document as unknown as Document, {
         charThreshold: 500,
+        keepClasses: true,
       });
 
       const article = reader.parse();
