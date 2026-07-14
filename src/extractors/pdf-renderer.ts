@@ -1,6 +1,3 @@
-import { createCanvas } from "@napi-rs/canvas";
-import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
-
 export interface RenderedPage {
   pageNumber: number;
   imageBuffer: Buffer;
@@ -16,6 +13,9 @@ export async function renderPdfToImages(
   buffer: Buffer,
   scale = 2.0,
 ): Promise<RenderedPage[]> {
+  const { createCanvas } = await import("@napi-rs/canvas");
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+
   const loadingTask = pdfjs.getDocument({
     data: new Uint8Array(buffer),
     // Use the standard fonts bundled with pdfjs-dist
