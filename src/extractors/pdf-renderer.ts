@@ -1,3 +1,6 @@
+import { createRequire } from "module";
+import path from "path";
+
 export interface RenderedPage {
   pageNumber: number;
   imageBuffer: Buffer;
@@ -16,16 +19,23 @@ export async function renderPdfToImages(
   const { createCanvas } = await import("@napi-rs/canvas");
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
+  const require = createRequire(import.meta.url);
+  const pdfjsPath = require.resolve("pdfjs-dist/package.json");
+  const standardFontDataUrl =
+    path.join(path.dirname(pdfjsPath), "standard_fonts") + "/";
+
   const loadingTask = pdfjs.getDocument({
     data: new Uint8Array(buffer),
     // Use the standard fonts bundled with pdfjs-dist
-    standardFontDataUrl: "node_modules/pdfjs-dist/standard_fonts/",
+    standardFontDataUrl,
   });
 
   const pdf = await loadingTask.promise;
   const pages: RenderedPage[] = [];
+  const MAX_PAGES_TO_RENDER = 10;
+  const pagesToRender = Math.min(pdf.numPages, MAX_PAGES_TO_RENDER);
 
-  for (let i = 1; i <= pdf.numPages; i++) {
+  for (let i = 1; i <= pagesToRender; i++) {
     const page = await pdf.getPage(i);
     const viewport = page.getViewport({ scale });
 
@@ -33,7 +43,9 @@ export async function renderPdfToImages(
     const context = canvas.getContext("2d");
 
     await page.render({
-      canvasContext: context as any, // Bypass strict type mismatch with HTMLCanvasElement
+      // biome-ignore lint/suspicious/noExplicitAny: canvas/SDK type mismatch
+      canvasContext: context as any,
+      // biome-ignore lint/suspicious/noExplicitAny: canvas/SDK type mismatch
       canvas: canvas as any,
       viewport,
     }).promise;

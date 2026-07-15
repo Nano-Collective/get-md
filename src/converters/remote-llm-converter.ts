@@ -91,7 +91,8 @@ export class RemoteLlmConverter {
     try {
       const generateTextParams: any = {
         model: provider(this.config.model),
-        system: images && images.length > 0 ? VISION_SYSTEM_PROMPT : SYSTEM_PROMPT,
+        system:
+          images && images.length > 0 ? VISION_SYSTEM_PROMPT : SYSTEM_PROMPT,
         temperature: this.config.temperature ?? DEFAULT_TEMPERATURE,
         maxOutputTokens: this.config.maxTokens ?? DEFAULT_MAX_TOKENS,
       };

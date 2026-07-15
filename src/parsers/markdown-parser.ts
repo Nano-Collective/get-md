@@ -352,7 +352,12 @@ export class MarkdownParser {
     // Decision point: Use LLM or Turndown
     if (opts.useLLM) {
       try {
-        markdown = await this.convertWithLLM(contentHtml, opts, emitEvent, source.images);
+        markdown = await this.convertWithLLM(
+          contentHtml,
+          opts,
+          emitEvent,
+          source.images,
+        );
       } catch (error) {
         // Handle fallback to Turndown
         if (opts.llmFallback !== false) {

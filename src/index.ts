@@ -111,22 +111,7 @@ export async function convertToMarkdown(
 
       // If LLM is enabled, optionally render pages to images to allow vision models
       // to recover diagrams from the PDF.
-      let images: Buffer[] | undefined;
-      if (options?.useLLM) {
-        try {
-          const { renderPdfToImages } = await import(
-            "./extractors/pdf-renderer.js"
-          );
-          const rendered = await renderPdfToImages(buffer);
-          images = rendered.map((r) => r.imageBuffer);
-        } catch (err) {
-          // Fallback gracefully if rendering fails or optional dependencies are missing
-          console.warn(
-            "PDF rendering failed or optional dependencies missing, skipping vision reconstruction:",
-            err,
-          );
-        }
-      }
+      const images = await tryRenderPdfToImages(buffer, options);
       contentSource = { type: "html", content: inputHtml, images };
     } else if (buffer.subarray(0, 2).toString("latin1") === "PK") {
       // ZIP-based Office Open XML (.docx). Route to the dedicated converter,
@@ -175,21 +160,7 @@ export async function convertToMarkdown(
         inputHtml = buildPdfHtml(reconstructPdfHtml(pdfPages), pdfMeta);
         forceExtractContentOff = true;
 
-        let images: Buffer[] | undefined;
-        if (options?.useLLM) {
-          try {
-            const { renderPdfToImages } = await import(
-              "./extractors/pdf-renderer.js"
-            );
-            const rendered = await renderPdfToImages(buffer);
-            images = rendered.map((r) => r.imageBuffer);
-          } catch (err) {
-            console.warn(
-              "PDF rendering failed or optional dependencies missing, skipping vision reconstruction:",
-              err,
-            );
-          }
-        }
+        const images = await tryRenderPdfToImages(buffer, options);
         contentSource = { type: "html", content: inputHtml, images };
       } else {
         inputHtml = await fetchUrl(input, fetchOptions);
@@ -224,7 +195,10 @@ export async function convertToMarkdown(
 
   // Use async path to enable Readability content extraction
   // sync path doesn't support content extraction
-  const result = await parser.convertAsync(contentSource as ContentSource, convertOptions);
+  const result = await parser.convertAsync(
+    contentSource as ContentSource,
+    convertOptions,
+  );
 
   // Optional post-processing: download every referenced image into a local
   // directory and rewrite the src. Per-image failures are logged inside,
@@ -553,6 +527,41 @@ function buildPdfHtml(body: string, metadata: PdfMetadata): string {
     );
   }
   return `<html><head>${head.join("")}</head><body>${body}</body></html>`;
+}
+
+/**
+ * Returns true if the configured LLM supports vision inputs.
+ * Currently, only remote providers support multimodal inputs.
+ */
+function supportsVision(options?: MarkdownOptions): boolean {
+  if (!options?.useLLM) return false;
+  if (!options.llm) return false; // defaults to local-llama without explicit config
+  // Only remote providers are currently supported for vision
+  return options.llm.sdkProvider !== "local-llama";
+}
+
+/**
+ * Attempt to render PDF pages to images if the selected LLM supports vision.
+ * Gracefully returns undefined if dependencies are missing or if the provider
+ * does not support vision.
+ */
+async function tryRenderPdfToImages(
+  buffer: Buffer,
+  options?: MarkdownOptions,
+): Promise<Buffer[] | undefined> {
+  if (!supportsVision(options)) return undefined;
+
+  try {
+    const { renderPdfToImages } = await import("./extractors/pdf-renderer.js");
+    const rendered = await renderPdfToImages(buffer);
+    return rendered.map((r) => r.imageBuffer);
+  } catch (err) {
+    console.warn(
+      "PDF rendering failed or optional dependencies missing, skipping vision reconstruction:",
+      err,
+    );
+    return undefined;
+  }
 }
 
 /** Empty result for a PDF that yielded no extractable text (e.g. scanned). */

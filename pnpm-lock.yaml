@@ -12,7 +12,7 @@ importers:
         specifier: ^0.6.0
         version: 0.6.0
       '@napi-rs/canvas':
-        specifier: 0.1.80
+        specifier: ^0.1.0
         version: 0.1.80
       cheerio:
         specifier: ^1.1.2
@@ -36,7 +36,7 @@ importers:
         specifier: ^2.4.5
         version: 2.4.5
       pdfjs-dist:
-        specifier: 5.4.296
+        specifier: ^5.0.0
         version: 5.4.296
       turndown:
         specifier: ^7.2.2
