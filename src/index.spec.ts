@@ -148,6 +148,17 @@ test("convertToMarkdown: throws on unsupported ContentSource type", async (t) =>
   );
 });
 
+test("convertToMarkdown: mermaid block in markdown input passes through intact", async (t) => {
+  const md = "# Diagram\n\n```mermaid\ngraph TD; A-->B;\n```\n";
+  const result = await convertToMarkdown(md, {
+    inputType: "markdown",
+    includeMeta: false,
+  });
+
+  t.true(result.markdown.includes("```mermaid"));
+  t.true(result.markdown.includes("graph TD; A-->B;"));
+});
+
 test("convertToMarkdown: returns proper MarkdownResult structure", async (t) => {
   const result = await convertToMarkdown(SIMPLE_HTML);
 

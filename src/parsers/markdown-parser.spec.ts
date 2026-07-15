@@ -921,3 +921,33 @@ test("MarkdownParser: recovers mermaid source from rendered SVG through Readabil
   t.true(result.markdown.includes("graph TD;"));
   t.true(result.markdown.includes("A-->B;"));
 });
+
+test("code block: mermaid fences survive HTML conversion", (t) => {
+  const parser = new MarkdownParser();
+  const html = `
+    <body>
+      <pre><code class="language-mermaid">graph TD; A--&gt;B;</code></pre>
+      <pre><code class="mermaid">sequenceDiagram; A-&gt;&gt;B: hi</code></pre>
+    </body>
+  `;
+  const result = parser.convert(html);
+  // Both the language-prefixed and bare single-word class must be tagged.
+  t.is(result.markdown.match(/```mermaid/g)?.length, 2);
+  t.true(result.markdown.includes("graph TD; A-->B;"));
+  t.true(result.markdown.includes("sequenceDiagram; A->>B: hi"));
+});
+
+test("code block: other diagram languages are preserved", (t) => {
+  const parser = new MarkdownParser();
+  const html = `
+    <body>
+      <pre><code class="language-graphviz">digraph { a -> b }</code></pre>
+      <pre><code class="language-plantuml">@startuml
+A -> B
+@enduml</code></pre>
+    </body>
+  `;
+  const result = parser.convert(html);
+  t.true(result.markdown.includes("```graphviz"));
+  t.true(result.markdown.includes("```plantuml"));
+});

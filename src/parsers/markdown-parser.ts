@@ -136,6 +136,11 @@ const KNOWN_LANGUAGES = new Set([
   "tsv",
   "markdown",
   "md",
+  // Diagrams
+  "mermaid",
+  "dot",
+  "graphviz",
+  "plantuml",
   // Other
   "diff",
   "patch",
