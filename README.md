@@ -35,6 +35,21 @@ npx @nanocollective/get-md handbook.pdf -o output.md
 npx @nanocollective/get-md document.docx -o output.md
 ```
 
+## Optional Features
+
+**Mermaid Diagram Validation:** 
+You can enable `validateMermaid: true` in your conversion options to automatically validate LLM-generated Mermaid diagrams. This requires installing the `mermaid` package:
+
+```bash
+npm install mermaid
+```
+
+```typescript
+const result = await convertToMarkdown(html, {
+  validateMermaid: true,
+});
+```
+
 ## Documentation
 
 Full documentation is available online at **[docs.nanocollective.org](https://docs.nanocollective.org/get-md/docs)** or in the [docs/](docs/) folder:

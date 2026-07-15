@@ -48,3 +48,18 @@ graph TD
   // Invalid block is flagged
   t.regex(result, /Block 2:\n\n> \[!WARNING\]/);
 });
+
+test("validateMermaid: is idempotent (prevents duplicate warnings)", async (t) => {
+  const markdown = "Here is an invalid graph:\n\n```mermaid\ngraph TD\n    A --> \n```\nEnd of graph.";
+  const firstPass = await validateMermaid(markdown);
+  t.not(firstPass, markdown);
+  t.regex(firstPass, /> \[!WARNING\]/);
+  
+  // Run it again on the already-flagged output
+  const secondPass = await validateMermaid(firstPass);
+  t.is(secondPass, firstPass, "Second pass should not mutate the string further");
+  
+  // Ensure we didn't add a second warning
+  const warningCount = (secondPass.match(/> \[!WARNING\]/g) || []).length;
+  t.is(warningCount, 1, "There should be exactly one warning block");
+});
