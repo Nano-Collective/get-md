@@ -13,7 +13,7 @@ For higher quality Markdown output, get-md supports optional AI-powered conversi
 
 `useLLM: true` with no `llm` block defaults to the local path, so the zero-API-key experience that existing users rely on is unchanged.
 
-If you want remote, see [Remote LLM Providers](./remote-llm.md). The rest of this page covers the local path.
+If you want remote capabilities like [PDF Diagram Recovery (Vision)](./remote-llm.md#pdf-diagram-recovery-vision), see [Remote LLM Providers](./remote-llm.md). The rest of this page covers the local path.
 
 ## Prerequisite: install `node-llama-cpp`
 

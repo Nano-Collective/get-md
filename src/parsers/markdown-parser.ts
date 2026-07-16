@@ -354,7 +354,12 @@ export class MarkdownParser {
     // Decision point: Use LLM or Turndown
     if (opts.useLLM) {
       try {
-        markdown = await this.convertWithLLM(contentHtml, opts, emitEvent);
+        markdown = await this.convertWithLLM(
+          contentHtml,
+          opts,
+          emitEvent,
+          source.images,
+        );
       } catch (error) {
         // Handle fallback to Turndown
         if (opts.llmFallback !== false) {
@@ -574,13 +579,14 @@ export class MarkdownParser {
     contentHtml: string,
     opts: NormalizedMarkdownOptions,
     emitEvent: LLMEventCallback,
+    images?: Buffer[],
   ): Promise<string> {
     const resolved = resolveLlmConfig(opts);
 
     if (resolved.sdkProvider === "local-llama") {
       return this.convertWithLocalLlama(contentHtml, resolved, emitEvent);
     }
-    return this.convertWithRemoteLlm(contentHtml, resolved, emitEvent);
+    return this.convertWithRemoteLlm(contentHtml, resolved, emitEvent, images);
   }
 
   /** Run the local ReaderLM-v2 path via node-llama-cpp */
@@ -628,12 +634,13 @@ export class MarkdownParser {
     contentHtml: string,
     config: Exclude<LlmConfig, LocalLlamaConfig>,
     emitEvent: LLMEventCallback,
+    images?: Buffer[],
   ): Promise<string> {
     const converter = new RemoteLlmConverter({
       config,
       onEvent: emitEvent,
     });
-    return converter.convert(contentHtml);
+    return converter.convert(contentHtml, images);
   }
 
   /**

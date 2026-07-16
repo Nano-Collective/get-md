@@ -16,6 +16,14 @@ const SYSTEM_PROMPT =
   "Strip navigation, ads, scripts, cookie banners, and other non-content chrome. " +
   "Output ONLY the Markdown — no preamble, no commentary, no surrounding code fences.";
 
+const VISION_SYSTEM_PROMPT =
+  "You are an expert at converting HTML into clean, well-structured Markdown for downstream LLM consumption. " +
+  "You are provided with the text of the page, as well as images of the rendered page. " +
+  "If the page contains diagrams, flowcharts, or architecture diagrams, reconstruct them as Mermaid code block fences in the appropriate location. " +
+  "Preserve the document's headings, lists, tables, code blocks, links, and images. " +
+  "Strip navigation, ads, scripts, cookie banners, and other non-content chrome. " +
+  "Output ONLY the Markdown — no preamble, no commentary, no surrounding code fences.";
+
 function buildUserPrompt(html: string): string {
   return `Convert the following HTML to clean Markdown.\n\nHTML:\n\`\`\`html\n${html}\n\`\`\``;
 }
@@ -64,7 +72,7 @@ export class RemoteLlmConverter {
   /**
    * Convert HTML to Markdown by calling the configured remote provider.
    */
-  async convert(html: string): Promise<string> {
+  async convert(html: string, images?: Buffer[]): Promise<string> {
     const startTime = Date.now();
 
     await this.emit({ type: "model-loading", modelName: this.config.model });
@@ -81,13 +89,38 @@ export class RemoteLlmConverter {
     await this.emit({ type: "conversion-start", inputSize: html.length });
 
     try {
-      const result = await aiCore.generateText({
+      const generateTextParams: any = {
         model: provider(this.config.model),
-        system: SYSTEM_PROMPT,
-        prompt: buildUserPrompt(html),
+        system:
+          images && images.length > 0 ? VISION_SYSTEM_PROMPT : SYSTEM_PROMPT,
         temperature: this.config.temperature ?? DEFAULT_TEMPERATURE,
         maxOutputTokens: this.config.maxTokens ?? DEFAULT_MAX_TOKENS,
-      });
+      };
+
+      if (images && images.length > 0) {
+        const parts: any[] = [{ type: "text", text: buildUserPrompt(html) }];
+        for (const image of images) {
+          parts.push({ type: "image", image });
+        }
+        generateTextParams.messages = [{ role: "user", content: parts }];
+      } else {
+        generateTextParams.prompt = buildUserPrompt(html);
+      }
+
+      let result: any;
+      try {
+        result = await aiCore.generateText(generateTextParams);
+      } catch (error) {
+        if (images && images.length > 0) {
+          // Fall back to text-only if the vision model request fails
+          generateTextParams.system = SYSTEM_PROMPT;
+          delete generateTextParams.messages;
+          generateTextParams.prompt = buildUserPrompt(html);
+          result = await aiCore.generateText(generateTextParams);
+        } else {
+          throw error;
+        }
+      }
 
       const markdown = stripFenceWrapper(result.text);
 

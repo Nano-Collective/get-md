@@ -1193,6 +1193,85 @@ test("convertToMarkdown: markdown input defaults includeMeta to true", async (t)
   );
 });
 
+test("convertToMarkdown: falls back to text-only if PDF rendering fails when useLLM is enabled", async (t) => {
+  const pdfBuffer = Buffer.from(
+      "%PDF-1.1\n" +
+      "1 0 obj\n" +
+      "<< /Type /Catalog /Pages 2 0 R >>\n" +
+      "endobj\n" +
+      "2 0 obj\n" +
+      "<< /Type /Pages /Kids [3 0 R] /Count 1 >>\n" +
+      "endobj\n" +
+      "3 0 obj\n" +
+      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\n" +
+      "endobj\n" +
+      "4 0 obj\n" +
+      "<< /Length 44 >>\n" +
+      "stream\n" +
+      "BT\n" +
+      "/F1 24 Tf\n" +
+      "100 100 Td\n" +
+      "(Hello PDF) Tj\n" +
+      "ET\n" +
+      "endstream\n" +
+      "endobj\n" +
+      "5 0 obj\n" +
+      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\n" +
+      "endobj\n" +
+      "xref\n" +
+      "0 6\n" +
+      "0000000000 65535 f \n" +
+      "0000000009 00000 n \n" +
+      "0000000058 00000 n \n" +
+      "0000000115 00000 n \n" +
+      "0000000244 00000 n \n" +
+      "0000000339 00000 n \n" +
+      "trailer\n" +
+      "<< /Size 6 /Root 1 0 R >>\n" +
+      "startxref\n" +
+      "427\n" +
+      "%%EOF\n"
+  );
+  
+  // Create a mock fetch that always returns "Markdown from AI"
+  const originalFetch = global.fetch;
+  global.fetch = (async () => {
+    const body = {
+      id: "chatcmpl-test",
+      object: "chat.completion",
+      created: 1234,
+      model: "test-model",
+      choices: [{ index: 0, message: { role: "assistant", content: "Markdown from AI" }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+    };
+    return {
+      ok: true, status: 200, statusText: "OK",
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => body,
+      text: async () => JSON.stringify(body),
+      clone() { return this; }
+    } as any;
+  }) as any;
+
+  try {
+    const result = await convertToMarkdown(pdfBuffer, { 
+      useLLM: true,
+      llmFallback: false,
+      llm: {
+        sdkProvider: "openai-compatible",
+        baseUrl: "https://api.openai.com/v1",
+        apiKey: "test",
+        model: "test"
+      }
+    });
+    
+    // We expect the AI mock response to be returned
+    t.true(result.markdown.includes("Markdown from AI"));
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("convertToMarkdown: validateMermaid catches invalid mermaid", async (t) => {
   const md = `
 Test
