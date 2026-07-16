@@ -33,6 +33,12 @@ export async function renderPdfToImages(
   const pdf = await loadingTask.promise;
   const pages: RenderedPage[] = [];
   const MAX_PAGES_TO_RENDER = 10;
+  if (pdf.numPages > MAX_PAGES_TO_RENDER) {
+    console.warn(
+      `[get-md] PDF has ${pdf.numPages} pages, which exceeds the rendering limit of ${MAX_PAGES_TO_RENDER}. ` +
+        `Only the first ${MAX_PAGES_TO_RENDER} pages will be processed for diagrams.`,
+    );
+  }
   const pagesToRender = Math.min(pdf.numPages, MAX_PAGES_TO_RENDER);
 
   for (let i = 1; i <= pagesToRender; i++) {

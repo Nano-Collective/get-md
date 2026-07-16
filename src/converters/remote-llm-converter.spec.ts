@@ -206,3 +206,61 @@ test("RemoteLlmConverter: uses VISION_SYSTEM_PROMPT and messages when images are
   const imagePart = userMessage.content.find((p: any) => p.type === "image_url");
   t.truthy(imagePart, "Should have an image part");
 });
+
+function mockRetryResponse(content: string): typeof fetch {
+  let callCount = 0;
+  return (async (_url: any, _init: any) => {
+    callCount++;
+    if (callCount === 1) {
+      // Simulate multimodal rejection
+      const errBody = { error: { message: "Multimodal not supported" } };
+      return {
+        ok: false,
+        status: 400,
+        statusText: "Bad Request",
+        headers: new Headers({ "content-type": "application/json" }),
+        json: async () => errBody,
+        text: async () => JSON.stringify(errBody),
+        body: null,
+        clone() { return this as unknown as Response; },
+      } as unknown as Response;
+    }
+    
+    // Simulate successful text-only response
+    const body = {
+      id: "chatcmpl-test",
+      object: "chat.completion",
+      created: Math.floor(Date.now() / 1000),
+      model: "test-model",
+      choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+    };
+    return {
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => body,
+      text: async () => JSON.stringify(body),
+      body: null,
+      clone() { return this as unknown as Response; },
+    } as unknown as Response;
+  }) as typeof fetch;
+}
+
+test("RemoteLlmConverter: retries without images if multimodal request fails", async (t) => {
+  global.fetch = mockRetryResponse("# Retried Markdown\n\nNo images here");
+
+  const config: RemoteLlmConfig = {
+    sdkProvider: "openai-compatible",
+    baseUrl: "https://openrouter.ai/api/v1",
+    apiKey: "sk-test",
+    model: "test/model",
+  };
+  const converter = createRemoteLlmConverter({ config });
+  
+  const dummyImages = [Buffer.from("fake-image")];
+  const markdown = await converter.convert("<h1>Hello</h1>", dummyImages);
+
+  t.is(markdown, "# Retried Markdown\n\nNo images here");
+});

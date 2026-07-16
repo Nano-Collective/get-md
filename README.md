@@ -37,6 +37,9 @@ npx @nanocollective/get-md document.docx -o output.md
 
 ## Optional Features
 
+**PDF Diagram Recovery (Vision):**
+When processing PDFs with a remote vision model, `get-md` can attempt to recover flowcharts and structural diagrams as Mermaid blocks. See the [Remote LLM Providers guide](docs/guides/remote-llm.md#pdf-diagram-recovery-vision) for setup and dependencies.
+
 **Mermaid Diagram Validation:** 
 You can enable `validateMermaid: true` in your conversion options to automatically validate LLM-generated Mermaid diagrams. This requires installing the `mermaid` package:
 

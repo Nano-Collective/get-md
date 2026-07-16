@@ -154,6 +154,24 @@ When the same option is set in multiple places, later overrides earlier:
 | `maxTokens` | no | Default `8192` |
 | `modelPath` | no (local-llama only) | Override the GGUF path |
 
+## PDF Diagram Recovery (Vision)
+
+When processing PDFs, `get-md` can attempt to recover structural diagrams (like flowcharts and architecture diagrams) and output them as Mermaid blocks. 
+
+**How to enable it:**
+Run the conversion with `useLLM: true` (or `--use-llm`) against a PDF input, using a vision-capable remote model (e.g., `gemini-2.5-flash`, `gpt-4o`). 
+
+Because this requires rendering PDF pages to images, you must manually install two optional peer dependencies:
+
+```bash
+npm install @nanocollective/get-md pdfjs-dist @napi-rs/canvas
+```
+
+**Caveats:**
+- Diagram fidelity is **best-effort** and relies entirely on the capabilities of your chosen vision model.
+- This feature is **remote-only**; the local `ReaderLM-v2` path is text-only.
+- To prevent overflowing the LLM context window, diagram recovery is silently **capped at the first 10 pages** of the PDF.
+
 ## See Also
 
 - [LLM Conversion](./llm-conversion.md) — Local ReaderLM-v2 path

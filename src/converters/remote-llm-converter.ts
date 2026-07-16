@@ -107,7 +107,20 @@ export class RemoteLlmConverter {
         generateTextParams.prompt = buildUserPrompt(html);
       }
 
-      const result = await aiCore.generateText(generateTextParams);
+      let result: any;
+      try {
+        result = await aiCore.generateText(generateTextParams);
+      } catch (error) {
+        if (images && images.length > 0) {
+          // Fall back to text-only if the vision model request fails
+          generateTextParams.system = SYSTEM_PROMPT;
+          delete generateTextParams.messages;
+          generateTextParams.prompt = buildUserPrompt(html);
+          result = await aiCore.generateText(generateTextParams);
+        } else {
+          throw error;
+        }
+      }
 
       const markdown = stripFenceWrapper(result.text);
 

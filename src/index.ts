@@ -199,7 +199,6 @@ export async function convertToMarkdown(
     result = await parser.convertAsync(contentSource, convertOptions);
   }
 
-
   // Optional post-processing: download every referenced image into a local
   // directory and rewrite the src. Per-image failures are logged inside,
   // not thrown — the markdown still comes back useful.
