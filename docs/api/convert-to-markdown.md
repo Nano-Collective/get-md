@@ -94,6 +94,7 @@ interface MarkdownOptions {
   includeLinks?: boolean;         // Include links (default: true)
   includeTables?: boolean;        // Include tables (default: true)
   aggressiveCleanup?: boolean;    // Remove ads, nav, etc. (default: true)
+  validateMermaid?: boolean;      // Validate generated Mermaid (default: false)
   maxLength?: number;             // Max output length (default: 1000000)
   baseUrl?: string;               // Base URL for resolving relative links
   inputType?: "html" | "markdown"; // Treat a string input as existing Markdown (default: "html")
@@ -143,6 +144,7 @@ interface MarkdownOptions {
 | `includeLinks` | boolean | `true` | Include hyperlinks in the output |
 | `includeTables` | boolean | `true` | Include tables in the output |
 | `aggressiveCleanup` | boolean | `true` | Apply aggressive cleanup to remove ads, cookie notices, and other non-content elements |
+| `validateMermaid` | boolean | `false` | Validates LLM-generated Mermaid diagrams and annotates invalid blocks with a warning. Requires the optional `mermaid` peer dependency to be installed by the user. Invalid blocks are preserved alongside the warning so you can manually repair them. |
 | `maxLength` | number | `1000000` | Maximum character length of the output Markdown |
 | `baseUrl` | string | — | Base URL for resolving relative links in the HTML |
 | `inputType` | `"html" \| "markdown"` | `"html"` | When `"markdown"`, treats a string input as existing Markdown and skips HTML parsing — see [Markdown input](#markdown-input) |

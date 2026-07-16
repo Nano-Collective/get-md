@@ -889,6 +889,39 @@ test("code block: single-word class that is a known language works", (t) => {
   t.true(result.markdown.includes("```py"));
 });
 
+// -- Mermaid recovery tests --
+
+test("MarkdownParser: recovers mermaid source from rendered SVG through Readability extraction", async (t) => {
+  const parser = new MarkdownParser();
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <body>
+      <article>
+        <h1>System Architecture</h1>
+        <p>This paragraph contains enough text to satisfy Readability's minimum content requirements. It explains the architecture of the system shown in the following diagram. If we do not have enough text, Readability will fail and we will not properly test the extraction pipeline. Therefore, this paragraph is intentionally wordy.</p>
+        <div class="mermaid" data-processed="true">
+          <svg id="mermaid-1" xmlns="http://www.w3.org/2000/svg">
+            <g><path d="..." /></g>
+          </svg>
+        </div>
+        <script type="text/mermaid" id="mermaid-1-source">
+          graph TD;
+            A-->B;
+        </script>
+      </article>
+    </body>
+    </html>
+  `;
+  const result = await parser.convertAsync(html);
+  console.log("MARKDOWN OUTPUT:", JSON.stringify(result.markdown));
+  
+  t.true(result.stats.readabilitySuccess, "Readability should have succeeded");
+  t.true(result.markdown.includes("\`\`\`mermaid"));
+  t.true(result.markdown.includes("graph TD;"));
+  t.true(result.markdown.includes("A-->B;"));
+});
+
 test("code block: mermaid fences survive HTML conversion", (t) => {
   const parser = new MarkdownParser();
   const html = `

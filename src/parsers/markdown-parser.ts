@@ -9,6 +9,7 @@ import { RemoteLlmConverter } from "../converters/remote-llm-converter.js";
 import { extractMetadata } from "../extractors/metadata-extractor.js";
 import { cleanHTML } from "../optimizers/html-cleaner.js";
 import { formatForLLM } from "../optimizers/llm-formatter.js";
+import { recoverMermaid } from "../optimizers/mermaid-recovery.js";
 import { enhanceStructure } from "../optimizers/structure-enhancer.js";
 import type {
   ContentMetadata,
@@ -261,7 +262,8 @@ type DefaultedOptionKeys =
   | "useLLM"
   | "llmTemperature"
   | "llmMaxTokens"
-  | "llmFallback";
+  | "llmFallback"
+  | "validateMermaid";
 
 type NormalizedMarkdownOptions = Required<
   Pick<MarkdownOptions, DefaultedOptionKeys>
@@ -456,14 +458,17 @@ export class MarkdownParser {
     metadata: ContentMetadata;
     readabilitySuccess: boolean;
   }> {
-    // Step 1: Extract main content using Readability
-    let contentHtml = html;
+    // Step 0: Recover mermaid diagrams before they get stripped
+    let contentHtml = recoverMermaid(html);
     let metadata: ContentMetadata = {};
     let readabilitySuccess = false;
 
     if (opts.extractContent) {
       try {
-        const extracted = await this.extractMainContent(html, opts.baseUrl);
+        const extracted = await this.extractMainContent(
+          contentHtml,
+          opts.baseUrl,
+        );
         if (extracted) {
           contentHtml = extracted.content;
           metadata = extracted.metadata;
@@ -512,8 +517,10 @@ export class MarkdownParser {
     metadata: ContentMetadata;
     readabilitySuccess: boolean;
   } {
+    // Step 0: Recover mermaid diagrams before they get stripped
+    let contentHtml = recoverMermaid(html);
+
     // Skip content extraction in sync version (requires async)
-    let contentHtml = html;
     let metadata: ContentMetadata = {};
     const readabilitySuccess = false;
 
@@ -808,6 +815,7 @@ export class MarkdownParser {
       // happy-dom-without-node implements enough of the DOM API for Readability
       const reader = new Readability(document as unknown as Document, {
         charThreshold: 500,
+        keepClasses: true,
       });
 
       const article = reader.parse();
@@ -1216,6 +1224,7 @@ export class MarkdownParser {
       includeLinks: options.includeLinks ?? true,
       includeTables: options.includeTables ?? true,
       aggressiveCleanup: options.aggressiveCleanup ?? true,
+      validateMermaid: options.validateMermaid ?? false,
 
       // URL fetching options
       isUrl: options.isUrl,

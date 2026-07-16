@@ -275,6 +275,16 @@ export interface MarkdownOptions {
   /** Aggressive noise removal (default: true) */
   aggressiveCleanup?: boolean;
 
+  /**
+   * Validate generated Mermaid parses (default: false).
+   *
+   * Requires the optional `mermaid` peer dependency to be installed by the user.
+   * If an invalid diagram is detected, it is preserved in the output alongside a
+   * warning. This allows users to inspect and manually repair the generated diagram
+   * instead of losing potentially useful content.
+   */
+  validateMermaid?: boolean;
+
   /** Force treat input as URL (bypasses auto-detection) */
   isUrl?: boolean;
 

@@ -1271,3 +1271,17 @@ test("convertToMarkdown: falls back to text-only if PDF rendering fails when use
     global.fetch = originalFetch;
   }
 });
+
+test("convertToMarkdown: validateMermaid catches invalid mermaid", async (t) => {
+  const md = `
+Test
+\`\`\`mermaid
+graph TD
+A -->
+\`\`\`
+`;
+  const result = await convertToMarkdown(md, { inputType: "markdown", validateMermaid: true });
+  t.regex(result.markdown, /> \[!WARNING\]/);
+  t.regex(result.markdown, /Invalid Mermaid syntax/);
+  t.regex(result.markdown, /```mermaid/);
+});
