@@ -6,7 +6,12 @@
 
 ## Bug fixes
 
+- **Mermaid validation no longer rejects valid diagrams.** `mermaid.parse` sanitizes label text through DOMPurify, which needs a DOM. Running under plain Node there wasn't one, so any diagram using node labels — `A[Start]`, `B{Choice}`, `-->|yes|`, and every class/state/ER/gantt/mindmap diagram — threw `DOMPurify.addHook is not a function` and was annotated as a syntax error. In practice almost every real diagram was flagged, including correct output from the PDF vision path this option exists to check. Validation now runs against a headless DOM (restoring the global scope, and `process`, afterwards), and only genuine parse errors produce a warning — anything environmental logs a diagnostic and leaves the diagram untouched.
 - **`--config <path>` is no longer ignored.** The flag was accepted and echoed by `--show-config`, but every conversion still loaded config through cwd/home auto-discovery — an explicitly named config file had no effect, and its validation errors never surfaced. All five conversion paths and `--show-config` now honor it.
+
+## Behaviour changes
+
+- **Code-block language tags now survive Readability extraction.** The Mermaid recovery work set `keepClasses: true`, so `<pre><code class="language-x">` keeps its class through extraction. Fenced output is now tagged (` ```python `, ` ```go `, ` ```rust `) where it previously came out untagged — a fix for syntax-highlighted pages generally, not just Mermaid. Two consequences worth knowing: unrecognised class names can surface as tags via the lowercase-word fallback, and because element classes now survive into the cleanup pass, class-based noise rules match more often — a `cookie-notice` block is correctly dropped, but so is genuine prose carrying an `advertisement` or `popup` class.
 
 ## Documentation
 
