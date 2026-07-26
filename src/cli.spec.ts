@@ -1192,3 +1192,142 @@ test("CLI: detectInputType via direct import", async (t) => {
     await fs.rm(tmpDir, { recursive: true, force: true });
   }
 });
+
+// ============================================================================
+// Mermaid Validation Tests
+// ============================================================================
+
+const BROKEN_MERMAID_MD = `# Diagram\n\nThis one does not parse:\n\n\`\`\`mermaid\ngraph TD\n  A -->\n\`\`\`\n`;
+
+async function createTempMarkdownFile(
+  content: string,
+  name = "input.md",
+): Promise<string> {
+  const tmpDir = await fs.mkdtemp(path.join(process.cwd(), "tmp-test-"));
+  const filePath = path.join(tmpDir, name);
+  await fs.writeFile(filePath, content, "utf-8");
+  return filePath;
+}
+
+test("CLI: --validate-mermaid annotates a block that does not parse", async (t) => {
+  const inputFile = await createTempMarkdownFile(BROKEN_MERMAID_MD);
+
+  try {
+    const { stdout, exitCode } = await runCli([
+      inputFile,
+      "--no-frontmatter",
+      "--validate-mermaid",
+    ]);
+
+    t.is(exitCode, 0);
+    t.true(stdout.includes("Invalid Mermaid syntax"));
+    // The original block is preserved alongside the warning so it can be repaired
+    t.true(stdout.includes("```mermaid"));
+    t.true(stdout.includes("graph TD"));
+  } finally {
+    await cleanupTempFile(inputFile);
+  }
+});
+
+test("CLI: no --validate-mermaid leaves the block unannotated", async (t) => {
+  const inputFile = await createTempMarkdownFile(BROKEN_MERMAID_MD);
+
+  try {
+    const { stdout, exitCode } = await runCli([inputFile, "--no-frontmatter"]);
+
+    t.is(exitCode, 0);
+    t.false(stdout.includes("Invalid Mermaid syntax"));
+    t.true(stdout.includes("```mermaid"));
+  } finally {
+    await cleanupTempFile(inputFile);
+  }
+});
+
+test("CLI: --validate-mermaid works on HTML input", async (t) => {
+  const html = `<article><h1>Diagram</h1><p>Body text long enough for readability to treat this as real article content here.</p><pre><code class="language-mermaid">graph TD
+  A --&gt;</code></pre></article>`;
+
+  const { stdout, exitCode } = await runCli(
+    ["--no-frontmatter", "--validate-mermaid"],
+    html,
+  );
+
+  t.is(exitCode, 0);
+  t.true(stdout.includes("Invalid Mermaid syntax"));
+});
+
+// ============================================================================
+// --config Path Tests
+// ============================================================================
+
+test("CLI: --config applies options from the named file", async (t) => {
+  const inputFile = await createTempMarkdownFile(BROKEN_MERMAID_MD);
+  const configFile = path.join(path.dirname(inputFile), "custom.json");
+  await fs.writeFile(
+    configFile,
+    JSON.stringify({ validateMermaid: true }),
+    "utf-8",
+  );
+
+  try {
+    const { stdout, exitCode } = await runCli([
+      inputFile,
+      "--no-frontmatter",
+      "--config",
+      configFile,
+    ]);
+
+    t.is(exitCode, 0);
+    t.true(stdout.includes("Invalid Mermaid syntax"));
+  } finally {
+    await cleanupTempFile(inputFile);
+  }
+});
+
+test("CLI: --config surfaces validation errors from the named file", async (t) => {
+  const inputFile = await createTempMarkdownFile(BROKEN_MERMAID_MD);
+  const configFile = path.join(path.dirname(inputFile), "bad.json");
+  await fs.writeFile(
+    configFile,
+    JSON.stringify({ validateMermaid: "yes" }),
+    "utf-8",
+  );
+
+  try {
+    const { stderr, exitCode } = await runCli([
+      inputFile,
+      "--config",
+      configFile,
+    ]);
+
+    t.not(exitCode, 0);
+    t.true(stderr.includes('"validateMermaid" must be a boolean'));
+  } finally {
+    await cleanupTempFile(inputFile);
+  }
+});
+
+test("CLI: --show-config reads the file named by --config", async (t) => {
+  const inputFile = await createTempMarkdownFile("# placeholder\n");
+  const configFile = path.join(path.dirname(inputFile), "shown.json");
+  await fs.writeFile(
+    configFile,
+    JSON.stringify({ validateMermaid: true, includeLinks: false }),
+    "utf-8",
+  );
+
+  try {
+    const { stdout, exitCode } = await runCli([
+      "--show-config",
+      "--config",
+      configFile,
+    ]);
+
+    t.is(exitCode, 0);
+    t.true(stdout.includes(configFile));
+    t.true(stdout.includes('"validateMermaid": true'));
+    t.true(stdout.includes('"includeLinks": false'));
+  } finally {
+    await cleanupTempFile(inputFile);
+  }
+});

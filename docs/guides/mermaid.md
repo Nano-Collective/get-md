@@ -156,6 +156,7 @@ getmd handbook.pdf --use-llm \
   --llm-provider google \
   --llm-model gemini-2.5-flash \
   --llm-api-key "$GOOGLE_GENERATIVE_AI_API_KEY" \
+  --validate-mermaid \
   -o handbook.md
 ```
 
@@ -186,6 +187,18 @@ const { markdown } = await convertToMarkdown(source, {
 });
 ```
 
+From the CLI, or in a config file:
+
+```bash
+getmd notes.md --validate-mermaid -o notes.checked.md
+```
+
+```json
+{
+  "validateMermaid": true
+}
+```
+
 Invalid blocks are **kept**, with a GitHub-style callout inserted above them, so you can repair them by hand rather than losing the content:
 
 ````markdown
@@ -204,7 +217,6 @@ Notes:
 - It runs last, after conversion and image localization.
 - **If `mermaid` isn't installed**, get-md logs a warning and returns the Markdown unchanged. Enabling the option can't break a conversion.
 - Only non-indented triple-backtick fences are matched. Indented fences may pass through unvalidated.
-- This is an **API option** — there is no `--validate-mermaid` CLI flag and no config-file key for it.
 - `mermaid` is a large browser-oriented package. Install it where you want the check, not by default.
 
 ## Troubleshooting

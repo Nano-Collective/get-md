@@ -42,6 +42,8 @@ export interface GetMdConfig {
   includeTables?: boolean;
   /** Aggressive noise removal */
   aggressiveCleanup?: boolean;
+  /** Flag Mermaid blocks that do not parse (needs the optional `mermaid` package) */
+  validateMermaid?: boolean;
   /** Maximum output length */
   maxLength?: number;
 }
@@ -107,6 +109,7 @@ function validateConfig(config: unknown): GetMdConfig {
     "includeLinks",
     "includeTables",
     "aggressiveCleanup",
+    "validateMermaid",
   ];
 
   for (const key of booleanKeys) {

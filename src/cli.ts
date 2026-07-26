@@ -29,6 +29,7 @@ import type {
 import {
   findConfigPath,
   loadConfig,
+  loadConfigFromFile,
   mergeConfigWithOptions,
 } from "./utils/config-loader.js";
 import {
@@ -60,6 +61,14 @@ export function detectInputType(input: string): "html" | "markdown" {
   }
 }
 
+/**
+ * Load the config that applies to this invocation. `--config <path>` selects an
+ * explicit file; without it we fall back to the usual cwd/home discovery.
+ */
+function loadCliConfig(configPath?: string) {
+  return configPath ? loadConfigFromFile(configPath) : loadConfig();
+}
+
 interface CliOptions {
   output?: string;
   extract: boolean;
@@ -69,6 +78,7 @@ interface CliOptions {
   tables: boolean;
   maxLength: string;
   baseUrl?: string;
+  validateMermaid?: boolean;
   verbose?: boolean;
   // LLM options
   useLlm?: boolean;
@@ -137,6 +147,10 @@ program
   .option("--no-tables", "Remove tables from output")
   .option("--max-length <n>", "Maximum output length", "1000000")
   .option("--base-url <url>", "Base URL for resolving relative links")
+  .option(
+    "--validate-mermaid",
+    "Flag Mermaid blocks that do not parse (requires the optional 'mermaid' package)",
+  )
   .option("-v, --verbose", "Verbose output")
   // LLM options
   .option("--use-llm", "Use LLM for higher quality HTML to Markdown conversion")
@@ -389,7 +403,7 @@ async function handleMarkdownInput(
   _inputPath: string | undefined,
   options: CliOptions,
 ): Promise<void> {
-  const fileConfig = loadConfig();
+  const fileConfig = loadCliConfig(options.config);
 
   // Build options. Readability content extraction is N/A for markdown input,
   // but the content filters (--no-images/--no-links/--no-tables) DO apply —
@@ -403,6 +417,7 @@ async function handleMarkdownInput(
     includeTables: options.tables,
     maxLength: parseInt(options.maxLength, 10),
     baseUrl: options.baseUrl,
+    validateMermaid: options.validateMermaid,
     // Signal to convertToMarkdown to skip HTML parsing
     inputType: "markdown",
     // LLM options from CLI
@@ -457,7 +472,7 @@ async function handleMarkdownConversion(
   options: CliOptions,
 ): Promise<void> {
   // Load config from file(s)
-  const fileConfig = loadConfig();
+  const fileConfig = loadCliConfig(options.config);
 
   // Build options from CLI flags
   const cliOptions: MarkdownOptions = {
@@ -468,6 +483,7 @@ async function handleMarkdownConversion(
     includeTables: options.tables,
     maxLength: parseInt(options.maxLength, 10),
     baseUrl: options.baseUrl,
+    validateMermaid: options.validateMermaid,
     // LLM options from CLI
     useLLM: options.useLlm,
     llmModelPath: options.llmModelPath,
@@ -552,7 +568,7 @@ async function handleDocxInput(
   options: CliOptions,
 ): Promise<void> {
   // Build conversion options from CLI flags (same as markdown conversion)
-  const fileConfig = loadConfig();
+  const fileConfig = loadCliConfig(options.config);
 
   const cliOptions: MarkdownOptions = {
     extractContent: false, // DOCX converter already gives clean HTML
@@ -562,6 +578,7 @@ async function handleDocxInput(
     includeTables: options.tables,
     maxLength: parseInt(options.maxLength, 10),
     baseUrl: options.baseUrl,
+    validateMermaid: options.validateMermaid,
     useLLM: options.useLlm,
     llmModelPath: options.llmModelPath,
     llmTemperature: options.llmTemperature
@@ -725,7 +742,7 @@ async function runBatchOverUrls(
   }
 
   // Load file config so the LLM block + env-substituted apiKey flow through.
-  const fileConfig = loadConfig();
+  const fileConfig = loadCliConfig(options.config);
   const cliOptions = {
     extractContent: options.extract,
     includeMeta: options.frontmatter,
@@ -734,6 +751,7 @@ async function runBatchOverUrls(
     includeTables: options.tables,
     maxLength: parseInt(options.maxLength, 10),
     baseUrl: options.baseUrl,
+    validateMermaid: options.validateMermaid,
     useLLM: options.useLlm,
     llmModelPath: options.llmModelPath,
     llmTemperature: options.llmTemperature
@@ -1055,6 +1073,7 @@ async function handleComparisonMode(
     includeTables: options.tables,
     maxLength: parseInt(options.maxLength, 10),
     baseUrl: options.baseUrl,
+    validateMermaid: options.validateMermaid,
   };
 
   // Run Turndown conversion
@@ -1164,7 +1183,7 @@ function handleShowConfig(configPath?: string): void {
   }
 
   try {
-    const config = loadConfig();
+    const config = loadCliConfig(configPath);
     console.log("\nLoaded configuration:");
     console.log(JSON.stringify(redactSecrets(config), null, 2));
   } catch (error) {

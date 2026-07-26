@@ -207,6 +207,7 @@ Use this checklist to verify all features work:
 ### Diagrams
 - [ ] `npx tsx examples/mermaid-diagrams.ts` - All four Mermaid paths behave as described
 - [ ] `./bin/get-md.js notes.md` - A ```` ```mermaid ```` fence in a Markdown file survives untouched
+- [ ] `./bin/get-md.js notes.md --validate-mermaid` - A diagram that does not parse gets a warning callout
 
 ### Configuration
 - [ ] `./bin/get-md.js --show-config` - Shows config (or "none found")

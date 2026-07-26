@@ -36,6 +36,7 @@ Create `.getmdrc` or `get-md.config.json` in your project or home directory:
 | `includeLinks` | boolean | `true` | Include links in output |
 | `includeTables` | boolean | `true` | Include tables in output |
 | `aggressiveCleanup` | boolean | `true` | Remove ads, navigation, and noise |
+| `validateMermaid` | boolean | `false` | Parse every Mermaid block and annotate the ones that fail. Needs the optional `mermaid` package |
 | `maxLength` | number | `1000000` | Maximum output character length |
 | `baseUrl` | string | — | Base URL for resolving relative links |
 | `useLLM` | boolean | `false` | Use LLM for conversion by default |

@@ -58,6 +58,7 @@ cat document.pdf | getmd
 | `--no-tables` | Remove tables from output |
 | `--max-length <n>` | Maximum output length (default: 1000000) |
 | `--base-url <url>` | Base URL for resolving relative links |
+| `--validate-mermaid` | Parse every Mermaid block and annotate the ones that fail — see [Diagrams & Mermaid](../guides/mermaid.md#validating-generated-mermaid). Needs the optional `mermaid` package |
 | `--download-images <dir>` | Download referenced images to `<dir>` and rewrite the markdown `src` to point at the local copies |
 | `--config <path>` | Path to a config file (overrides auto-discovery) |
 | `-v, --verbose` | Verbose output |

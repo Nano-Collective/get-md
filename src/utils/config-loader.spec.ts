@@ -82,12 +82,22 @@ test("loadConfigFromFile: loads all supported boolean options", async (t) => {
     includeLinks: false,
     includeTables: true,
     aggressiveCleanup: false,
+    validateMermaid: true,
   };
   const filePath = await createConfigFile(TEST_CONFIG_DIR, ".getmdrc", config);
 
   const loaded = loadConfigFromFile(filePath);
 
   t.deepEqual(loaded, config);
+});
+
+test("loadConfigFromFile: throws for invalid validateMermaid type", async (t) => {
+  const config = { validateMermaid: "yes" }; // Should be boolean, not string
+  const filePath = await createConfigFile(TEST_CONFIG_DIR, ".getmdrc", config);
+
+  t.throws(() => loadConfigFromFile(filePath), {
+    message: /validateMermaid.*must be a boolean/,
+  });
 });
 
 test("loadConfigFromFile: loads string options", async (t) => {

@@ -1,3 +1,20 @@
+# Unreleased
+
+## New features
+
+- **`--validate-mermaid`** — the Mermaid validation added for #22 was reachable only from the library API. It is now a CLI flag and a `validateMermaid` config-file key, so all three entry points agree. Applies to every conversion path: HTML, URL, Markdown, PDF, DOCX, batch, and sitemap.
+
+## Bug fixes
+
+- **`--config <path>` is no longer ignored.** The flag was accepted and echoed by `--show-config`, but every conversion still loaded config through cwd/home auto-discovery — an explicitly named config file had no effect, and its validation errors never surfaced. All five conversion paths and `--show-config` now honor it.
+
+## Documentation
+
+- New [Diagrams & Mermaid guide](docs/guides/mermaid.md) covering what get-md preserves (existing fences), recovers (source behind a browser-rendered `<svg>`), reconstructs (PDF diagrams via a remote vision model), and validates — with a support matrix, the recovery precedence order, and the limits of each opt-in path.
+- New runnable `examples/mermaid-diagrams.ts` demonstrating preservation, recovery, and validation offline.
+- Corrected the README's `validateMermaid` snippet, which passed a bare Markdown string — that is parsed as HTML unless `inputType: "markdown"` is set, so the fence came back escaped.
+- Corrected the `validateMermaid` option description: it validates every Mermaid block in the output, not just LLM-generated ones.
+
 # 1.6.0
 
 get-md is no longer HTML-only. This release adds **PDF, DOCX, and Markdown** ingestion alongside HTML and URLs — pass a file, a `Buffer`, or a URL and get-md routes it to the right extractor automatically — plus a launch-hardening pass over the whole multi-format surface.
