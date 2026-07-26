@@ -1,24 +1,79 @@
-# Unreleased
+# 1.7.0
+
+Diagrams survive the trip. Where 1.6.0 taught get-md to read PDF, DOCX, and Markdown, this release is about not throwing away the one thing a Markdown converter usually destroys: **Mermaid diagrams**. get-md now preserves fences it finds, recovers source from diagrams a browser has already rendered to `<svg>`, optionally reconstructs diagrams drawn into a PDF using a vision model, and optionally checks that whatever comes out actually parses.
 
 ## New features
 
-- **`--validate-mermaid`** — the Mermaid validation added for #22 was reachable only from the library API. It is now a CLI flag and a `validateMermaid` config-file key, so all three entry points agree. Applies to every conversion path: HTML, URL, Markdown, PDF, DOCX, batch, and sitemap.
+### Mermaid fences survive conversion
 
-## Bug fixes
+`mermaid` is now a recognised language identifier, alongside `dot`, `graphviz`, and `plantuml`. Previously a Mermaid block survived only by accident, via a loose lowercase-word fallback with no test coverage behind it.
 
-- **Mermaid validation no longer rejects valid diagrams.** `mermaid.parse` sanitizes label text through DOMPurify, which needs a DOM. Running under plain Node there wasn't one, so any diagram using node labels — `A[Start]`, `B{Choice}`, `-->|yes|`, and every class/state/ER/gantt/mindmap diagram — threw `DOMPurify.addHook is not a function` and was annotated as a syntax error. In practice almost every real diagram was flagged, including correct output from the PDF vision path this option exists to check. Validation now runs against a headless DOM (restoring the global scope, and `process`, afterwards), and only genuine parse errors produce a warning — anything environmental logs a diagnostic and leaves the diagram untouched.
-- **`--config <path>` is no longer ignored.** The flag was accepted and echoed by `--show-config`, but every conversion still loaded config through cwd/home auto-discovery — an explicitly named config file had no effect, and its validation errors never surfaced. All five conversion paths and `--show-config` now honor it.
+- A ` ```mermaid ` block in HTML (`<pre><code class="language-mermaid">`) or in a Markdown file comes out the other side unchanged, fence and language tag intact.
+- Works from the library and the CLI, for HTML, URL, and `.md` input.
+
+### Mermaid source recovered from rendered diagrams
+
+GitHub, MkDocs, and Docusaurus run mermaid.js client-side, so the HTML you fetch holds the *rendered* `<svg>`, not the diagram. The source is usually still in the DOM somewhere, and get-md now goes looking for it before Readability and the HTML cleaner can strip it.
+
+- Detects `.mermaid`, `pre.mermaid`, `[data-processed="true"]`, `svg[id^="mermaid-"]`, and `svg.mermaid` containers.
+- Takes the first source it can find, in order: a `<script type="text/mermaid">` (inside or sibling); a `data-code`/`data-mermaid`/`data-src`/`data-original`/`data-source` attribute; the container's own text when it is a `<pre>` holding no `<svg>`; a hidden `pre[hidden]`/`<template>`/`textarea[hidden]`; and finally the SVG's `<desc>`, `<title>`, or `aria-label`.
+- That last fallback is deliberately strict. mermaid.js writes accessibility strings such as `Created with Mermaid` into those nodes, and emitting one as a diagram would be worse than dropping it — text qualifies only if it is multi-line, contains `;`, or opens with a diagram keyword *and* carries an arrow, a colon, or real length.
+- Recovered diagrams are re-emitted as ` ```mermaid ` fences. Where no source is recoverable, behaviour is unchanged: the SVG's text labels fall through as loose text.
+
+### Diagrams in PDFs reconstructed by a vision model (opt-in)
+
+A diagram in a PDF is vector drawing or raster image — there is no text to recover, so this is a vision problem. With `useLLM` and a remote vision-capable model, get-md renders PDF pages to images and asks the model to emit Mermaid inline where the diagram appeared.
+
+- New `src/extractors/pdf-renderer.ts` renders pages to JPEG at 2× scale via `pdfjs-dist` and `@napi-rs/canvas`, both **optional** peer dependencies — install them only if you want this. Standard fonts resolve dynamically from the installed `pdfjs-dist`.
+- `RemoteLlmConverter.convert()` accepts images and switches to a vision system prompt that asks for diagram reconstruction; images ride along as multimodal message parts.
+- **Remote providers only.** The local ReaderLM-v2 path is text-only, and so is `useLLM` with no `llm` config, since that defaults to local-llama. Neither renders pages nor calls a vision model.
+- **Capped at the first 10 pages**, to keep long PDFs from overflowing the model's context. Longer documents log a warning naming the cap; text extraction still covers the whole file.
+- Fails soft in both directions: missing render dependencies or a render error warns and continues text-only, and a failed vision request retries the same conversion without images.
+- Accuracy varies with the model and the diagram. This is a best-effort assist, not guaranteed fidelity.
+
+### Mermaid validation (opt-in)
+
+`validateMermaid: true` runs every ` ```mermaid ` fence in the finished Markdown through mermaid's own parser and annotates the ones that fail, so a model that emits plausible-but-broken Mermaid does not do so silently.
+
+- Invalid blocks are **kept**, with a GitHub-style `> [!WARNING]` callout inserted above them — you repair the diagram rather than losing it.
+- Applies to all Mermaid in the output — preserved, recovered, and model-generated alike — and runs last, after conversion and image localization.
+- Available as the `validateMermaid` library option, the `--validate-mermaid` CLI flag, and a `validateMermaid` config-file key, across every conversion path: HTML, URL, Markdown, PDF, DOCX, batch, and sitemap.
+- Requires the **optional** `mermaid` peer dependency. Without it, get-md logs a warning and returns the Markdown untouched, so enabling the option can never break a conversion.
+- Only non-indented triple-backtick fences are matched; indented fences may pass through unvalidated.
+
+## Bug fixes & hardening
+
+- **Mermaid validation no longer rejects valid diagrams.** `mermaid.parse` sanitizes label text through DOMPurify, which needs a DOM. Under plain Node there wasn't one, so any diagram carrying node labels — `A[Start]`, `B{Choice}`, `-->|yes|`, and every class/state/ER/gantt/mindmap diagram — threw `DOMPurify.addHook is not a function`, and the validator treated any throw as a syntax error. In practice almost every real diagram was annotated as invalid, including correct output from the PDF vision path this option exists to check. Validation now installs a headless DOM before importing mermaid (the point DOMPurify binds to the global scope) and restores the global scope afterwards — including `process`, which constructing a happy-dom `Window` replaces. Only a genuine parse complaint now annotates the document; anything environmental logs one diagnostic and leaves the diagram alone. Two diagram types (`pie`, `gitGraph`) still take that path, failing inside a lazily loaded mermaid parser chunk.
+- **`--config <path>` is no longer ignored.** The flag was accepted, and `--show-config` even printed the path, but every conversion still loaded configuration through cwd/home auto-discovery. An explicitly named config file had no effect on output and its validation errors never surfaced, so a typo'd config failed silently. All five conversion paths and `--show-config` now resolve config through one helper that honors the flag.
+- **Duplicate validation warnings prevented.** Re-running validation over already-annotated Markdown no longer stacks a second warning onto the same block; the fence-matching regex was also tightened for stability.
+- **PDF rendering is loaded dynamically**, so the optional `pdfjs-dist`/`@napi-rs/canvas` dependencies are never touched unless vision reconstruction is actually in play.
 
 ## Behaviour changes
 
-- **Code-block language tags now survive Readability extraction.** The Mermaid recovery work set `keepClasses: true`, so `<pre><code class="language-x">` keeps its class through extraction. Fenced output is now tagged (` ```python `, ` ```go `, ` ```rust `) where it previously came out untagged — a fix for syntax-highlighted pages generally, not just Mermaid. Two consequences worth knowing: unrecognised class names can surface as tags via the lowercase-word fallback, and because element classes now survive into the cleanup pass, class-based noise rules match more often — a `cookie-notice` block is correctly dropped, but so is genuine prose carrying an `advertisement` or `popup` class.
+- **Code-block language tags now survive Readability extraction.** The Mermaid recovery work sets `keepClasses: true`, so `<pre><code class="language-x">` keeps its class through extraction. Fenced output is now tagged — ` ```python `, ` ```go `, ` ```rust ` — where it previously came out bare. This is a general fix for syntax-highlighted pages, not a Mermaid-only one, and it is the most visible change in this release for anyone converting documentation sites. Two consequences worth knowing: unrecognised class names can surface as tags via the lowercase-word fallback, and because element classes now survive into the cleanup pass, class-based noise rules match more often — a `cookie-notice` block is correctly dropped, but so is genuine prose carrying an `advertisement` or `popup` class.
+
+## Known limitations
+
+- A PDF with no extractable text — a pure scan, or a page that is nothing but a diagram — still returns an empty result before page rendering is attempted, so vision reconstruction never runs on exactly the PDFs that would benefit most. Unchanged from 1.6.0, but worth stating now that the vision path exists.
+- `pie` and `gitGraph` diagrams are skipped by the validator rather than checked, for the reason described above.
+
+## Dependencies
+
+- New optional peer dependencies, none of them installed by default: `pdfjs-dist` (^5) and `@napi-rs/canvas` (^0.1) for PDF page rendering, and `mermaid` (^11) for validation. The default install footprint is unchanged.
 
 ## Documentation
 
-- New [Diagrams & Mermaid guide](docs/guides/mermaid.md) covering what get-md preserves (existing fences), recovers (source behind a browser-rendered `<svg>`), reconstructs (PDF diagrams via a remote vision model), and validates — with a support matrix, the recovery precedence order, and the limits of each opt-in path.
-- New runnable `examples/mermaid-diagrams.ts` demonstrating preservation, recovery, and validation offline.
+- New **[Diagrams & Mermaid guide](docs/guides/mermaid.md)** — a support matrix of what is preserved, recovered, reconstructed, and validated per input type; the recovery precedence order; setup and limits for the opt-in PDF path; and a troubleshooting table.
+- New runnable **`examples/mermaid-diagrams.ts`**, covering preservation, recovery, and validation entirely offline, with the PDF vision path as a commented snippet.
+- Remote LLM guide documents PDF diagram recovery and its dependencies; CLI and configuration references document `--validate-mermaid` and the `validateMermaid` key; README gains a Mermaid section.
 - Corrected the README's `validateMermaid` snippet, which passed a bare Markdown string — that is parsed as HTML unless `inputType: "markdown"` is set, so the fence came back escaped.
-- Corrected the `validateMermaid` option description: it validates every Mermaid block in the output, not just LLM-generated ones.
+- Corrected the `validateMermaid` option description: it validates every Mermaid block in the output, not just model-generated ones.
+
+## Tests
+
+634 passing (up from 592 at 1.6.0). New coverage for: Mermaid fence preservation from HTML and Markdown, and the other diagram languages; source recovery across every container shape and source strategy, including the accessibility-text guard; PDF page rendering and the 10-page cap; vision prompting, multimodal message assembly, and text-only fallback; validation across nine diagram shapes that were previously false-positived, plus global-scope and `process` restoration; and the `--validate-mermaid` flag and `--config` resolution end-to-end through the CLI.
+
+If there are any problems, feedback or thoughts please drop an issue or message us through Discord! Thank you for using get-md.
 
 # 1.6.0
 
