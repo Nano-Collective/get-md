@@ -14,6 +14,7 @@ get-md is a fast, lightweight HTML, PDF, DOCX, and Markdown to Markdown converte
 - **Fetch and convert URLs** with automatic detection and configurable fetching
 - **Extract metadata** including title, author, reading time, and more as YAML frontmatter
 - **Use AI-powered conversion** with a local ReaderLM-v2 model for higher quality HTML output
+- **Keep Mermaid diagrams** — preserved from source, recovered from browser-rendered SVG, and optionally reconstructed from PDFs
 - **Filter content** by toggling images, links, tables, and noise removal
 
 get-md works as both a Node.js library and a CLI tool, with full React Native support.
@@ -41,5 +42,5 @@ getmd https://example.com -o output.md
 - [Quick Start](getting-started/quick-start.md) — Convert your first page
 - [API Reference](api/index.md) — Full library API reference
 - [CLI](cli/index.md) — Command-line interface reference
-- [Guides](guides/index.md) — In-depth walkthroughs for LLM conversion, React Native, and more
+- [Guides](guides/index.md) — In-depth walkthroughs for LLM conversion, Mermaid diagrams, React Native, and more
 - [Community](community.md) — Get involved

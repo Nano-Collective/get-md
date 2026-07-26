@@ -89,6 +89,24 @@ npx tsx examples/config-usage.ts
 
 ---
 
+### 5. Mermaid Diagrams (`mermaid-diagrams.ts`)
+
+Demonstrates what get-md does with Mermaid diagrams across input types.
+
+```bash
+npx tsx examples/mermaid-diagrams.ts
+```
+
+**Features shown:**
+- Preserving a ```` ```mermaid ```` fence from HTML
+- Preserving a fence from Markdown input via `inputType: "markdown"`
+- Recovering diagram source from a browser-rendered `<svg>`
+- Flagging invalid diagrams with `validateMermaid: true`
+
+**Note:** Runs entirely offline. `validateMermaid` needs the optional `mermaid` package (already a dev dependency here); without it the step is skipped with a warning. PDF diagram reconstruction needs a remote vision model and is included as a commented snippet — see the [Diagrams & Mermaid guide](../docs/guides/mermaid.md).
+
+---
+
 ## CLI Testing
 
 You can also test features via the CLI:
@@ -185,6 +203,10 @@ Use this checklist to verify all features work:
 - [ ] `npx tsx examples/llm-conversion.ts` - LLM conversion works
 - [ ] `./bin/get-md.js https://example.com --use-llm` - CLI LLM works
 - [ ] `./bin/get-md.js https://example.com --compare` - Comparison works
+
+### Diagrams
+- [ ] `npx tsx examples/mermaid-diagrams.ts` - All four Mermaid paths behave as described
+- [ ] `./bin/get-md.js notes.md` - A ```` ```mermaid ```` fence in a Markdown file survives untouched
 
 ### Configuration
 - [ ] `./bin/get-md.js --show-config` - Shows config (or "none found")

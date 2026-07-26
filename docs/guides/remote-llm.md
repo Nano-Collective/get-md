@@ -172,7 +172,10 @@ npm install @nanocollective/get-md pdfjs-dist @napi-rs/canvas
 - This feature is **remote-only**; the local `ReaderLM-v2` path is text-only.
 - To prevent overflowing the LLM context window, diagram recovery is silently **capped at the first 10 pages** of the PDF.
 
+For the full picture — including how Mermaid is preserved and recovered without an LLM, and how to validate what the model produces — see [Diagrams & Mermaid](./mermaid.md).
+
 ## See Also
 
+- [Diagrams & Mermaid](./mermaid.md) — Everything get-md does with Mermaid diagrams
 - [LLM Conversion](./llm-conversion.md) — Local ReaderLM-v2 path
 - [Configuration](../configuration/index.md) — Full config file reference

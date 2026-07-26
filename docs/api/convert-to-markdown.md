@@ -144,7 +144,7 @@ interface MarkdownOptions {
 | `includeLinks` | boolean | `true` | Include hyperlinks in the output |
 | `includeTables` | boolean | `true` | Include tables in the output |
 | `aggressiveCleanup` | boolean | `true` | Apply aggressive cleanup to remove ads, cookie notices, and other non-content elements |
-| `validateMermaid` | boolean | `false` | Validates LLM-generated Mermaid diagrams and annotates invalid blocks with a warning. Requires the optional `mermaid` peer dependency to be installed by the user. Invalid blocks are preserved alongside the warning so you can manually repair them. |
+| `validateMermaid` | boolean | `false` | Parses every Mermaid block in the output and annotates invalid ones with a warning callout. Requires the optional `mermaid` peer dependency to be installed by the user; without it, get-md warns and leaves the Markdown unchanged. Invalid blocks are preserved alongside the warning so you can manually repair them — see [Diagrams & Mermaid](../guides/mermaid.md) |
 | `maxLength` | number | `1000000` | Maximum character length of the output Markdown |
 | `baseUrl` | string | — | Base URL for resolving relative links in the HTML |
 | `inputType` | `"html" \| "markdown"` | `"html"` | When `"markdown"`, treats a string input as existing Markdown and skips HTML parsing — see [Markdown input](#markdown-input) |
