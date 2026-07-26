@@ -8,5 +8,6 @@
   "includeLinks": true,
   "includeTables": true,
   "aggressiveCleanup": true,
+  "validateMermaid": false,
   "maxLength": 1000000
 }
