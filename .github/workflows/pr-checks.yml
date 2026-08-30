@@ -1,0 +1,18 @@
+name: Pull Request Automated Checks
+
+# Thin caller for the shared org workflow. Everything lives in
+# Nano-Collective/.github — change it there and every repo picks it up.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  pr-checks:
+    uses: Nano-Collective/.github/.github/workflows/pr-checks.yml@main
