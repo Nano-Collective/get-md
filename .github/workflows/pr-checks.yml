@@ -16,3 +16,5 @@ permissions:
 jobs:
   pr-checks:
     uses: Nano-Collective/.github/.github/workflows/pr-checks.yml@main
+    with:
+      validate-changesets: true
