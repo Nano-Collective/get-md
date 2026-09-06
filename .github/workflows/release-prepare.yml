@@ -1,0 +1,19 @@
+name: Prepare Release (Version PR)
+
+# Thin caller for the shared org workflow. Everything lives in
+# Nano-Collective/.github — change it there and every repo picks it up.
+#
+# This never publishes. Merging the Version Packages PR it maintains pushes a
+# version bump to main, which release.yml detects and publishes.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-prepare:
+    uses: Nano-Collective/.github/.github/workflows/release-prepare.yml@main
