@@ -8,23 +8,23 @@
  */
 
 async function getReleaseLine(changeset) {
-	const summary = (changeset.summary || '').trim();
-	if (!summary) return '';
+  const summary = (changeset.summary || "").trim();
+  if (!summary) return "";
 
-	// Pass the author's markdown through faithfully. If they already wrote one
-	// or more list items (the usual case for a consolidated entry), emit it as
-	// written. Otherwise treat the whole summary as a single bullet.
-	const isMarkdownList = /^\s*[-*]\s/.test(summary);
-	return `\n${isMarkdownList ? summary : `- ${summary}`}`;
+  // Pass the author's markdown through faithfully. If they already wrote one
+  // or more list items (the usual case for a consolidated entry), emit it as
+  // written. Otherwise treat the whole summary as a single bullet.
+  const isMarkdownList = /^\s*[-*]\s/.test(summary);
+  return `\n${isMarkdownList ? summary : `- ${summary}`}`;
 }
 
 async function getDependencyReleaseLine() {
-	// Internal dependency bumps are not user-facing.
-	return '';
+  // Internal dependency bumps are not user-facing.
+  return "";
 }
 
 module.exports = {
-	getReleaseLine,
-	getDependencyReleaseLine,
-	default: {getReleaseLine, getDependencyReleaseLine},
+  getReleaseLine,
+  getDependencyReleaseLine,
+  default: { getReleaseLine, getDependencyReleaseLine },
 };
