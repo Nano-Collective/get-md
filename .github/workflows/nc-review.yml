@@ -1,0 +1,67 @@
+name: nc-review
+
+# Thin caller for the shared org workflow. The machinery lives in
+# Nano-Collective/.github — change it there and every repo picks it up on its
+# next run. What stays here is the trigger wiring and the rubric.
+#
+# The rubric is deliberately NOT shared. It is where a project says what it
+# cares about — its conventions, its test layout, the mistakes it keeps seeing.
+# Sharing it would produce reviews that read the same everywhere and land
+# nowhere. Same split as pr-checks: shared machinery, local judgement.
+#
+# Before adopting this in a repo you need two things:
+#
+#   1. `.github/nc-review/rubric.md` in this repository.
+#   2. MINIMAX_API_KEY readable here — set it once as an ORGANISATION secret
+#      with visibility "all". Organisation Actions secrets are available to
+#      public repositories on the Free plan (verified 2026-09-07), so there is
+#      no need to copy the key into each repo.
+#
+# Retire `copilot_code_review` from that repo's Review gates ruleset only once
+# this is live and producing verdicts — removing it earlier leaves the repo with
+# no automated review at all, which inverts decision Q7.
+
+on:
+  pull_request_target:
+    # On open only (decision Q8). Re-review is manual, via the comment trigger
+    # below — re-running on every push would burn tokens on work in progress.
+    types: [opened]
+    branches: [main]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number to review
+        required: true
+        type: string
+
+concurrency:
+  # One review per PR. A /re-review while one is running queues behind it.
+  group: nc-review-${{ github.event.pull_request.number || github.event.issue.number || inputs.pr_number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  nc-review:
+    uses: Nano-Collective/.github/.github/workflows/nc-review.yml@main
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    with:
+      # Only ever non-empty on workflow_dispatch, and that is deliberate.
+      # The shared workflow resolves the PR itself with
+      #   github.event.pull_request.number || github.event.issue.number || inputs.pr-number
+      # so pull_request_target and issue_comment are covered by the event, and
+      # this input is purely the manual-dispatch fallback. Do not duplicate that
+      # expression here — it would be the same logic in nine callers, drifting.
+      pr-number: ${{ inputs.pr_number }}
+      # AGENTS.md is this repo's architecture document.
+      architecture-doc: 'AGENTS.md'
+    secrets:
+      MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
