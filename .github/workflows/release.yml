@@ -1,5 +1,11 @@
 name: Release to NPM and GitHub
 
+# Thin caller for the shared org workflow. Everything lives in
+# Nano-Collective/.github — change it there and every repo picks it up.
+#
+# Publishes only when package.json's version is ahead of npm, so merging the
+# Version Packages PR is what triggers a release. Nothing else does.
+
 on:
   push:
     branches: [main]
@@ -7,173 +13,15 @@ on:
 permissions:
   contents: write
   packages: write
+  # Required for npm publish --provenance (OIDC build attestation).
+  id-token: write
 
 jobs:
-  check-version:
-    runs-on: ubuntu-latest
-    outputs:
-      should-publish: ${{ steps.version-check.outputs.should-publish }}
-      package-version: ${{ steps.version-check.outputs.package-version }}
-      npm-version: ${{ steps.version-check.outputs.npm-version }}
-      is-prerelease: ${{ steps.version-check.outputs.is-prerelease }}
-      npm-tag: ${{ steps.version-check.outputs.npm-tag }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Check version difference
-        id: version-check
-        run: |
-          # Get current package.json version
-          PACKAGE_VERSION=$(node -p "require('./package.json').version")
-          echo "package-version=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
-
-          # Detect prerelease versions (beta, alpha, rc, etc.)
-          if [[ "$PACKAGE_VERSION" == *"-beta"* ]]; then
-            echo "is-prerelease=true" >> $GITHUB_OUTPUT
-            echo "npm-tag=beta" >> $GITHUB_OUTPUT
-            echo "📦 Beta version detected: $PACKAGE_VERSION"
-          elif [[ "$PACKAGE_VERSION" == *"-alpha"* ]]; then
-            echo "is-prerelease=true" >> $GITHUB_OUTPUT
-            echo "npm-tag=alpha" >> $GITHUB_OUTPUT
-            echo "📦 Alpha version detected: $PACKAGE_VERSION"
-          elif [[ "$PACKAGE_VERSION" == *"-rc"* ]]; then
-            echo "is-prerelease=true" >> $GITHUB_OUTPUT
-            echo "npm-tag=rc" >> $GITHUB_OUTPUT
-            echo "📦 Release candidate detected: $PACKAGE_VERSION"
-          else
-            echo "is-prerelease=false" >> $GITHUB_OUTPUT
-            echo "npm-tag=latest" >> $GITHUB_OUTPUT
-            echo "📦 Stable version detected: $PACKAGE_VERSION"
-          fi
-
-          # Get latest NPM version (handle case where package doesn't exist yet)
-          NPM_VERSION=$(npm view @nanocollective/get-md version 2>/dev/null || echo "0.0.0")
-          echo "npm-version=$NPM_VERSION" >> $GITHUB_OUTPUT
-
-          # Compare versions
-          if [ "$PACKAGE_VERSION" != "$NPM_VERSION" ]; then
-            echo "✅ New version detected: $PACKAGE_VERSION (current NPM: $NPM_VERSION)"
-            echo "should-publish=true" >> $GITHUB_OUTPUT
-          else
-            echo "ℹ️ No version change detected: $PACKAGE_VERSION"
-            echo "should-publish=false" >> $GITHUB_OUTPUT
-          fi
-
-  publish:
-    needs: check-version
-    if: needs.check-version.outputs.should-publish == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build project
-        run: pnpm run build
-
-      - name: Run tests
-        run: pnpm test:all
-
-      - name: Verify build output
-        run: |
-          if [ ! -f "dist/cli.js" ]; then
-            echo "❌ Build failed: dist/cli.js not found"
-            exit 1
-          fi
-          echo "✅ Build successful: dist/cli.js exists"
-
-      - name: Extract Changelog
-        id: changelog
-        run: |
-          # Extract changelog for current version
-          CHANGELOG=$(node scripts/extract-changelog.js 2>&1)
-          if [ $? -eq 0 ]; then
-            echo "✅ Changelog extracted successfully"
-            # Use EOF to handle multi-line output
-            echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
-            echo "$CHANGELOG" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "⚠️ No changelog entry found, using default message"
-            echo "CHANGELOG=No changelog available for this version." >> $GITHUB_OUTPUT
-          fi
-
-      - name: Publish to NPM
-        run: npm publish --access public --tag ${{ needs.check-version.outputs.npm-tag }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ needs.check-version.outputs.package-version }}
-          release_name: get-md v${{ needs.check-version.outputs.package-version }}
-          body: |
-            ## What's Changed
-
-            ${{ steps.changelog.outputs.CHANGELOG }}
-
-            ### Installation
-            ```bash
-            # Install stable version
-            npm install -g @nanocollective/get-md
-
-            # Install this specific version
-            npm install -g @nanocollective/get-md@${{ needs.check-version.outputs.package-version }}
-            ```
-
-            ### Usage
-            ```bash
-            getmd
-            ```
-
-            OR
-
-            ```ts
-            import { convertToMarkdown } from "@nanocollective/get-md";
-
-            // From HTML string
-            const result = await convertToMarkdown("<h1>Hello</h1><p>World</p>");
-            console.log(result.markdown);
-            ```
-
-            **Full Changelog**: https://github.com/Nano-Collective/get-md/compare/v${{ needs.check-version.outputs.npm-version }}...v${{ needs.check-version.outputs.package-version }}
-          draft: false
-          prerelease: ${{ needs.check-version.outputs.is-prerelease == 'true' }}
-
-  notify:
-    needs: [check-version, publish]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notify result
-        run: |
-          if [ "${{ needs.check-version.outputs.should-publish }}" == "true" ]; then
-            if [ "${{ needs.publish.result }}" == "success" ]; then
-              echo "🎉 Successfully published @nanocollective/get-md v${{ needs.check-version.outputs.package-version }} to NPM and created GitHub release!"
-            else
-              echo "❌ Failed to publish @nanocollective/get-md v${{ needs.check-version.outputs.package-version }}"
-              exit 1
-            fi
-          else
-            echo "ℹ️ No new version to publish (current: ${{ needs.check-version.outputs.package-version }})"
-          fi
+  release:
+    uses: Nano-Collective/.github/.github/workflows/release.yml@main
+    with:
+      # Both are shipped: the library entry point and the CLI the bin maps to.
+      verify-files: 'dist/index.js dist/cli.js'
+      install-command: 'npm install -g {pkg}'
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
