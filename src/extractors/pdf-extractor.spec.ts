@@ -184,10 +184,14 @@ test("reconstructPdfHtml: drops running headers/footers repeated across pages", 
 test("reconstructPdfHtml: escapes HTML in reconstructed content", (t) => {
     const html = reconstructPdfHtml(["A line with <script>alert(1)</script> in it."]);
     t.true(html.includes("&lt;script&gt;"));
-    // nosemgrep: javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag
     // This assertion *is* the XSS check: it fails if reconstructPdfHtml ever
     // stops escaping. Semgrep sees `html` near a `<script>` literal and cannot
     // tell a test that proves sanitisation from code that skips it.
+    //
+    // The suppression has to sit on the line immediately above the finding —
+    // semgrep only looks at that line and the flagged one, so putting the
+    // explanation between the two silently does nothing.
+    // nosemgrep: javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag
     t.false(html.includes("<script>"));
 });
 
