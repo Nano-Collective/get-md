@@ -301,6 +301,14 @@ test("convertToMarkdown: respects baseUrl option for relative links", async (t) 
   );
 });
 
+test("convertToMarkdown: keeps relative links and images without baseUrl", async (t) => {
+  const html = `<html><body><article><p>${"Some text here. ".repeat(40)}<a href="/page">Link</a> <img src="img/a.png" alt="a"></p></article></body></html>`;
+  const result = await convertToMarkdown(html, { includeMeta: false });
+
+  t.true(result.markdown.includes("[Link](/page)"));
+  t.true(result.markdown.includes("![a](img/a.png)"));
+});
+
 test("convertToMarkdown: accepts custom rules", async (t) => {
   const customRules = [
     {

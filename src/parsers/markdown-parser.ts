@@ -796,9 +796,9 @@ export class MarkdownParser {
               .process
           : undefined;
 
-      const window = new Window({
-        url: baseUrl || "https://example.com",
-      });
+      // Without a base URL, keep the default about:blank so Readability
+      // leaves relative links and image paths as they are.
+      const window = new Window(baseUrl ? { url: baseUrl } : {});
       const document = window.document;
       // This is safe - we're parsing user-provided HTML in an isolated happy-dom environment,
       // not in a browser context. The HTML is then processed by Readability for extraction.
@@ -984,7 +984,8 @@ export class MarkdownParser {
       filter: "img",
       replacement: (_content, node: TurndownNode) => {
         const alt = node.alt || "Image";
-        const src = node.src || node.getAttribute?.("data-src") || "";
+        const src =
+          node.getAttribute?.("src") || node.getAttribute?.("data-src") || "";
         const title = node.title || "";
 
         if (!src) return "";
