@@ -113,6 +113,16 @@ test("cleans inline formatting - handles multiple emphasis patterns", (t) => {
   t.true(result.includes("**extra bold**"));
 });
 
+test("cleans inline formatting - keeps spaces between emphasis spans", (t) => {
+  const markdown = "Some **bold** and *italic* text";
+  t.is(formatForLLM(markdown), "Some **bold** and *italic* text");
+});
+
+test("cleans inline formatting - leaves code untouched", (t) => {
+  const markdown = "Use `a * b * c` here\n\n```\nx = 1 * 2 * 3\n```";
+  t.is(formatForLLM(markdown), markdown);
+});
+
 test("enhances code blocks - adds line breaks before", (t) => {
   const markdown = "Some text\`\`\`javascript\ncode\n\`\`\`";
   const result = formatForLLM(markdown);
