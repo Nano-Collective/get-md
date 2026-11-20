@@ -141,11 +141,11 @@ Continued Lists8
 
 # Images
 
-Images can be of three main types. Inline images are images that are part of the normal text flow, like this image of a green dot ![Image](/). Inline images do not cause breaks in the text and are usually small in size.![Image](/) The next category of image is a floating image, one that “floats “ on the page and is surrounded by text. Word supports more types of floating images than are possible with current ebook technology, so the conversion maps floating images to simple left and right floats, as you can see with the left and right arrow images on the sides of this paragraph.
+Images can be of three main types. Inline images are images that are part of the normal text flow, like this image of a green dot . Inline images do not cause breaks in the text and are usually small in size. The next category of image is a floating image, one that “floats “ on the page and is surrounded by text. Word supports more types of floating images than are possible with current ebook technology, so the conversion maps floating images to simple left and right floats, as you can see with the left and right arrow images on the sides of this paragraph.
 
 The final type of image is a “block” image, one that becomes a paragraph on its own and has no text on either side. Below is a centered green dot.
 
-![Image](/)![Image](/)Centered images like this are useful for large pictures that should be a focus of attention.
+Centered images like this are useful for large pictures that should be a focus of attention.
 
 Generally, it is not possible to translate the exact positioning of images from a Word document to an ebook. That is because in Word, image positioning is specified in absolute units from the page boundaries. There is no analogous technology in ebooks, so the conversion will usually end up placing the image either centered or floating close to the point in the text where it was inserted, not necessarily where it appears on the page in Word.
 
