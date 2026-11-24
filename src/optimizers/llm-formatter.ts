@@ -93,7 +93,7 @@ function cleanInlineFormatting(markdown: string): string {
       // The opening marker must start a word, so a closing marker followed by the
       // next span's opening marker is not taken as one span.
       result = result.replace(
-        /(?<=^|\s)(\*{1,2})\s+([^*]+?)\s+(\*{1,2})(?=\s|$|[.,;:!?)])/gm,
+        /(?<=^|[\s"'“([])(\*{1,2})\s+([^*]+?)\s+(\*{1,2})(?=\s|$|[.,;:!?)\]"'”])/gm,
         "$1$2$3",
       );
 

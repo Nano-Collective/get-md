@@ -118,6 +118,11 @@ test("cleans inline formatting - keeps spaces between emphasis spans", (t) => {
   t.is(formatForLLM(markdown), "Some **bold** and *italic* text");
 });
 
+test("cleans inline formatting - emphasis after an opening quote or bracket", (t) => {
+  const markdown = 'He said "** bold **" (** note **) [* aside *]';
+  t.is(formatForLLM(markdown), 'He said "**bold**" (**note**) [*aside*]');
+});
+
 test("cleans inline formatting - leaves code untouched", (t) => {
   const markdown = "Use `a * b * c` here\n\n```\nx = 1 * 2 * 3\n```";
   t.is(formatForLLM(markdown), markdown);
