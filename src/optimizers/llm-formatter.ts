@@ -79,16 +79,27 @@ function normalizeListFormatting(markdown: string): string {
 }
 
 function cleanInlineFormatting(markdown: string): string {
-  let result = markdown;
+  // Odd-index segments are fenced blocks and inline code; never rewrite them.
+  const segments = markdown.split(/(```[\s\S]*?```|`[^`\n]+`)/g);
+  return segments
+    .map((seg, i) => {
+      if (i % 2 === 1) return seg;
+      let result = seg;
 
-  // Remove multiple consecutive emphasis markers (***text*** → **text**)
-  result = result.replace(/\*{3,}(.+?)\*{3,}/g, "**$1**");
+      // Remove multiple consecutive emphasis markers (***text*** → **text**)
+      result = result.replace(/\*{3,}(.+?)\*{3,}/g, "**$1**");
 
-  // Clean up spaces inside emphasis markers only (e.g., "** text **" → "**text**")
-  // This pattern matches the full emphasis span with internal spaces and removes them
-  result = result.replace(/(\*{1,2})\s+([^*]+?)\s+(\*{1,2})/g, "$1$2$3");
+      // Clean up spaces inside emphasis markers only (e.g., "** text **" → "**text**").
+      // The opening marker must start a word, so a closing marker followed by the
+      // next span's opening marker is not taken as one span.
+      result = result.replace(
+        /(?<=^|[\s"'“([])(\*{1,2})\s+([^*]+?)\s+(\*{1,2})(?=\s|$|[.,;:!?)\]"'”])/gm,
+        "$1$2$3",
+      );
 
-  return result;
+      return result;
+    })
+    .join("");
 }
 
 function enhanceCodeBlocks(markdown: string): string {
